@@ -15,6 +15,8 @@
   #stage { position: absolute; inset: 0; perspective: 1300px; display: flex; justify-content: center; align-items: flex-end; }
   #tilt { transform-origin: 50% 100%; transform: rotateX(13deg); }
   canvas { display: block; }
+  #back { position: fixed; bottom: 18px; right: 18px; z-index: 3; display: none; padding: 6px 12px; border-radius: 4px;
+          background: #2a2824e6; border: 1px solid #a77c2c; color: #ddd8cc; cursor: pointer; }
   #power { position: fixed; inset: 0; z-index: 4; display: flex; align-items: center; justify-content: center;
            background: #000a; }
   #power button { font: 600 20px system-ui; letter-spacing: .1em; padding: 18px 34px; color: #f0e6cc;
@@ -31,6 +33,7 @@
   <span class="hint">login: ken / ken · Backspace = # · stuck? → Restart computer</span>
 </div>
 <div id="stage"><div id="tilt"><canvas id="c"></canvas></div></div>
+<div id="back">Scrolled back · End or any key returns</div>
 <div id="power"><button id="bPower">POWER ON TELETYPE</button></div>
 
 <script>
@@ -62,7 +65,8 @@ const rnd = (a, b) => a + Math.random() * (b - a);
 
 // ---------- paper ----------
 let lines, cur, col, dirty = true, scrollAnim = 0, headX = MARGIN, ribbon = 1;
-function newPaper() { lines = [mkLine()]; cur = 0; dirty = true; }
+let viewOff = 0, viewTarget = 0;   // mouse-wheel scrollback (pixels the paper is pulled back down)
+function newPaper() { lines = [mkLine()]; cur = 0; viewOff = viewTarget = 0; dirty = true; const b = document.getElementById("back"); if (b) b.style.display = "none"; }
 function mkLine() { return { strikes: [], cache: null, dirty: true }; }
 
 const paperTex = (() => {               // paper texture (fibres + noise), tiled
@@ -122,15 +126,16 @@ function render() {
   const paperBottom = PRINT_Y + 16;
   // paper (texture scrolls with the text)
   if (!paperPattern) paperPattern = ctx.createPattern(paperTex, "repeat");
-  const shift = (cur * LH - scrollAnim) % 256;
+  const shift = (((cur * LH - scrollAnim - viewOff) % 256) + 256) % 256;
   ctx.save();
   ctx.beginPath(); ctx.rect(30, 0, W - 60, paperBottom); ctx.clip();
   ctx.translate(0, -shift); ctx.fillStyle = paperPattern; ctx.fillRect(0, shift - 256, W, paperBottom + 512);
   ctx.restore();
   // lines
   for (let i = cur; i >= 0; i--) {
-    const y = PRINT_Y - (cur - i) * LH + scrollAnim - LH * 1.35;
+    const y = PRINT_Y - (cur - i) * LH + scrollAnim + viewOff - LH * 1.35;
     if (y < -LH * 2) break;
+    if (y > H) continue;                      // pulled down behind the platen
     const L = lines[i];
     if (L.dirty) renderLine(L);
     ctx.drawImage(L.cache, 0, y, W, LH * 2);
@@ -278,6 +283,8 @@ function frame(t) {
   while (budget >= 1 && queueOut.length) { budget--; out(queueOut.shift(), !turbo || n++ % 40 === 0); }
   if (!queueOut.length) budget = Math.min(budget, 1);
   if (scrollAnim > .3) { scrollAnim *= Math.pow(.0005, dt); dirty = true; } else scrollAnim = 0;
+  if (Math.abs(viewTarget - viewOff) > .3) { viewOff += (viewTarget - viewOff) * Math.min(1, dt * 14); dirty = true; }
+  else if (viewOff !== viewTarget) { viewOff = viewTarget; dirty = true; }
   if (Math.abs(MARGIN + Math.min(col, COLS - 1) * CW - headX) > .5) dirty = true;
   if (dirty) { render(); dirty = false; }
   requestAnimationFrame(frame);
@@ -295,7 +302,20 @@ function connect() {
 let sending = Promise.resolve();
 function send(str) { sending = sending.then(() => fetch("/key", { method: "POST", body: str }).catch(() => {})); }
 
+// ---------- scrollback with the mouse wheel ----------
+function scrollTo(px) {
+  viewTarget = Math.max(0, Math.min(px, cur * LH));
+  document.getElementById("back").style.display = viewTarget > 0 ? "block" : "none";
+}
+window.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const d = e.deltaMode === 1 ? e.deltaY * LH : e.deltaMode === 2 ? e.deltaY * H : e.deltaY;
+  scrollTo(viewTarget - d);                    // wheel up = pull the paper down = read older text
+}, { passive: false });
+
 window.addEventListener("keydown", (e) => {
+  if (e.key === "End" || e.key === "PageDown" && e.shiftKey) { e.preventDefault(); scrollTo(0); return; }
+  if (e.key === "PageUp" && e.shiftKey) { e.preventDefault(); scrollTo(viewTarget + H * .6); return; }
   if (e.key === "F5") { e.preventDefault(); toggleTurbo(); return; }
   if (e.key === "F7") { e.preventDefault(); toggleLid(); return; }
   if (e.key === "F8" && SMP.cr.length) {         // try the next carriage-return sample
@@ -310,13 +330,14 @@ window.addEventListener("keydown", (e) => {
   else if (e.key === "Tab") s = "\t";
   else if (e.key === "Escape") s = "\x1b";
   else if (e.key.length === 1) s = e.key.toLowerCase();
-  if (s !== null) { e.preventDefault(); send(s); }
+  if (s !== null) { e.preventDefault(); scrollTo(0); send(s); }
 });
 
 function toggleTurbo() { turbo = !turbo; document.getElementById("bTurbo").classList.toggle("on", turbo); }
 function toggleLid() { lid = !lid; document.getElementById("bLid").classList.toggle("on", lid); if (S.master) S.master.gain.value = lid ? .2 : .8; }
 document.getElementById("bTurbo").onclick = (e) => { toggleTurbo(); e.target.blur(); };
 document.getElementById("bLid").onclick = (e) => { toggleLid(); e.target.blur(); };
+document.getElementById("back").onclick = () => scrollTo(0);
 document.getElementById("bTear").onclick = (e) => { newPaper(); e.target.blur(); };
 document.getElementById("bReset").onclick = (e) => {   // safety: the first click only asks
   const b = e.target; b.blur();
