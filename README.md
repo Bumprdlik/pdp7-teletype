@@ -49,6 +49,8 @@ stays untouched. The disk is saved on exit (`Ctrl+C`).
 | F5 / **Turbo** | fast printing |
 | F7 / **Lid** | quieter machine |
 | F8 | cycle carriage-return sounds (only with your own samples) |
+| F2 / **Manual** | Unix v0 manual in a side panel, with search |
+| mouse wheel, End | scroll back through the paper, return to the print line |
 | **Tear off paper** | start with a clean sheet |
 | **Restart computer** | power-cycle the PDP-7 (when Unix hangs) |
 | Backspace | sends `#`, which erases the previous character in v0 |
@@ -59,6 +61,12 @@ stays untouched. The disk is saved on exit (`Ctrl+C`).
 - programs live in the `system` directory; commands only work in a directory you can write to
 - `ed` is the only editor; `b` (the B language) and `as` can build `hello.b` in `dmr`'s directory
 - do not run `n.out` - it is a symbol table, not a program, and it hangs the whole machine
+
+## Manual
+
+The **Manual** panel shows the man pages shipped with pdp7-unix (`man/` next to its `build/`
+directory, override with `PDP7_UNIX_MAN`) plus a short "v0 tips" page. The search box filters
+pages by name and content and highlights the matches.
 
 ## Sounds
 

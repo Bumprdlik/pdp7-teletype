@@ -24,6 +24,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 HERE = os.path.dirname(os.path.abspath(__file__))
 UNIX_BUILD = os.path.expanduser(os.environ.get("PDP7_UNIX_BUILD", "~/Applications/pdp7-unix/build"))
 SIMH = os.path.expanduser(os.environ.get("SIMH_PDP7", "~/Applications/simh/BIN/pdp7"))
+MAN_DIR = os.path.expanduser(os.environ.get("PDP7_UNIX_MAN", os.path.join(os.path.dirname(UNIX_BUILD), "man")))
 DISK_DIR = os.path.join(HERE, "disk")
 TEL_PORT = 0          # SIMH console: a free port is picked on every start
 HTTP_PORT = 8033
@@ -260,6 +261,20 @@ class Handler(BaseHTTPRequestHandler):
             d = os.path.join(HERE, "sounds")
             names = sorted(f for f in os.listdir(d) if f.endswith(".wav")) if os.path.isdir(d) else []
             body = json.dumps(names).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        elif self.path == "/man.json":
+            pages = []
+            if os.path.isdir(MAN_DIR):
+                for f in sorted(os.listdir(MAN_DIR)):
+                    fp = os.path.join(MAN_DIR, f)
+                    if os.path.isfile(fp) and os.path.getsize(fp) < 200_000:
+                        with open(fp, encoding="latin-1") as fh:
+                            pages.append({"name": f, "text": fh.read()})
+            body = json.dumps(pages).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
