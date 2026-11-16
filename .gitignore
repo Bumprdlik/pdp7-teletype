@@ -1,3 +1,4 @@
 disk/
 sounds/*.wav
 __pycache__/
+deps/

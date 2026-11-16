@@ -22,8 +22,10 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-UNIX_BUILD = os.path.expanduser(os.environ.get("PDP7_UNIX_BUILD", "~/Applications/pdp7-unix/build"))
-SIMH = os.path.expanduser(os.environ.get("SIMH_PDP7", "~/Applications/simh/BIN/pdp7"))
+
+DEPS = os.path.join(HERE, "deps")  # filled by setup.sh
+UNIX_BUILD = os.path.expanduser(os.environ.get("PDP7_UNIX_BUILD", os.path.join(DEPS, "pdp7-unix", "build")))
+SIMH = os.path.expanduser(os.environ.get("SIMH_PDP7", os.path.join(DEPS, "simh", "BIN", "pdp7")))
 MAN_DIR = os.path.expanduser(os.environ.get("PDP7_UNIX_MAN", os.path.join(os.path.dirname(UNIX_BUILD), "man")))
 DISK_DIR = os.path.join(HERE, "disk")
 TEL_PORT = 0          # SIMH console: a free port is picked on every start
@@ -105,8 +107,11 @@ load boot.rim 010000
 go
 """)
     log = open(os.path.join(DISK_DIR, "simh.log"), "w")
-    def die_with_parent():  # if the server dies, SIMH gets SIGTERM
-        ctypes.CDLL("libc.so.6").prctl(1, signal.SIGTERM)  # PR_SET_PDEATHSIG
+    def die_with_parent():  # Linux: if the server dies, SIMH gets SIGTERM
+        try:
+            ctypes.CDLL("libc.so.6").prctl(1, signal.SIGTERM)  # PR_SET_PDEATHSIG
+        except (OSError, AttributeError):
+            pass  # other systems: rely on the normal shutdown path
 
     proc = subprocess.Popen([SIMH, cfg], cwd=DISK_DIR, stdin=subprocess.PIPE,
                             stdout=log, stderr=subprocess.STDOUT, preexec_fn=die_with_parent)
@@ -320,7 +325,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     if not os.path.exists(SIMH):
-        sys.exit(f"simulator not found: {SIMH} (set SIMH_PDP7)")
+        sys.exit(f"simulator not found: {SIMH}\nrun ./setup.sh first (or set SIMH_PDP7)")
     signal.signal(signal.SIGTERM, lambda *a: (_ for _ in ()).throw(KeyboardInterrupt))
     srv = None
     for i in range(20):  # a previous run may still be shutting down

@@ -16,16 +16,30 @@ browser (index.html)  <->  teletype.py (HTTP + SSE, 127.0.0.1:8033)  <->  SIMH p
 `teletype.py` starts the SIMH simulator with its console on telnet, connects to it and streams
 the output to the page. It uses only the Python standard library and listens on `127.0.0.1` only.
 
+## Quick start
+
+```sh
+git clone https://github.com/Bumprdlik/pdp7-teletype.git
+cd pdp7-teletype
+./setup.sh             # fetches and builds Open SIMH (pdp7) and pdp7-unix into ./deps
+python3 teletype.py
+```
+
+`setup.sh` needs `git`, `make`, a C compiler and Perl with the `DateTime` module; it tells you
+how to install whatever is missing. Running it again only builds what is missing
+(`--rebuild` forces a rebuild).
+
 ## Requirements
 
 - Python 3
-- the PDP-7 simulator from [Open SIMH](https://github.com/open-simh/simh) (`make pdp7`; on 64-bit systems
-  pdp7-unix recommends `OPTIMIZE=-O1`)
-- a built [pdp7-unix](https://github.com/DoctorWkt/pdp7-unix) (`make`, needs Perl with the DateTime module;
-  with GCC 15+ use `make CCARGS="-std=gnu89 -Wno-multichar -Wno-implicit"`)
+- the PDP-7 simulator from [Open SIMH](https://github.com/open-simh/simh)
+- a built [pdp7-unix](https://github.com/DoctorWkt/pdp7-unix)
 
-Default paths are `~/Applications/simh/BIN/pdp7` and `~/Applications/pdp7-unix/build`.
-Override them with environment variables:
+`setup.sh` takes care of both. If you build them yourself: SIMH with `make OPTIMIZE=-O1 pdp7`,
+pdp7-unix with `make CCARGS="-std=gnu89 -Wno-multichar -Wno-implicit"` (its B compiler is K&R C,
+which GCC 15+ rejects otherwise).
+
+`teletype.py` looks for them in `./deps`. Other locations can be set with environment variables:
 
 ```sh
 SIMH_PDP7=/path/to/pdp7 PDP7_UNIX_BUILD=/path/to/pdp7-unix/build python3 teletype.py
