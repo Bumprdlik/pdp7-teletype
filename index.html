@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<title>Teletype 33</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #141311; }
+  body { font: 13px/1.4 system-ui, sans-serif; color: #b9b4a8; }
+  #bar { position: fixed; top: 0; left: 0; right: 0; z-index: 3; display: flex; gap: 8px; align-items: center;
+         padding: 8px 14px; background: linear-gradient(#000c, #0000); }
+  #bar button { font: inherit; color: #ddd8cc; background: #2a2824; border: 1px solid #4a463e; border-radius: 4px;
+                padding: 4px 10px; cursor: pointer; }
+  #bar button.on { background: #6b4f1d; border-color: #a77c2c; }
+  #bar .hint { margin-left: auto; opacity: .7; }
+  #stage { position: absolute; inset: 0; perspective: 1300px; display: flex; justify-content: center; align-items: flex-end; }
+  #tilt { transform-origin: 50% 100%; transform: rotateX(13deg); }
+  canvas { display: block; }
+  #power { position: fixed; inset: 0; z-index: 4; display: flex; align-items: center; justify-content: center;
+           background: #000a; }
+  #power button { font: 600 20px system-ui; letter-spacing: .1em; padding: 18px 34px; color: #f0e6cc;
+                  background: #3b2a10; border: 2px solid #a77c2c; border-radius: 8px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="bar">
+  <button id="bTurbo" title="F5">Turbo</button>
+  <button id="bLid" title="F7">Víko</button>
+  <button id="bTear">Utrhnout papír</button>
+  <button id="bReset" title="vypne a znovu zapne PDP-7 (disk se uloží)">Restart počítače</button>
+  <span class="hint">F8 = další zvuk vozíku (<b id="crName">cr_1.wav</b>)</span>
+  <span class="hint">login: ken / ken · Backspace = # · zaseknuté? → Restart počítače</span>
+</div>
+<div id="stage"><div id="tilt"><canvas id="c"></canvas></div></div>
+<div id="power"><button id="bPower">ZAPNOUT DÁLNOPIS</button></div>
+
+<script>
+"use strict";
+// ---------- rozměry (Model 33: 72 znaků na řádek, 10 zn/palec, 6 řádků/palec) ----------
+const COLS = 72, FONT_PX = 21;
+const FONT = `bold ${FONT_PX}px "Courier New", "Nimbus Mono PS", "Liberation Mono", monospace`;
+const cv = document.getElementById("c"), ctx = cv.getContext("2d");
+ctx.font = FONT;
+const CW = Math.round(ctx.measureText("M").width * 1.04), LH = Math.round(CW * 1.66);
+const MARGIN = 70, W = MARGIN * 2 + COLS * CW;
+let H = 0, PRINT_Y = 0, DPR = 1;
+
+function resize() {
+  DPR = window.devicePixelRatio || 1;
+  const scale = Math.min(1, (window.innerWidth - 20) / W);
+  H = Math.round((window.innerHeight - 10) / scale);
+  PRINT_Y = H - 120;
+  cv.width = W * DPR; cv.height = H * DPR;
+  cv.style.width = W * scale + "px"; cv.style.height = H * scale + "px";
+  dirty = true;
+}
+
+// ---------- pseudonáhoda: každý znak na válci je trochu jinak opotřebený ----------
+function hash(n) { n = (n ^ 61) ^ (n >>> 16); n = n + (n << 3); n ^= n >>> 4; n = Math.imul(n, 0x27d4eb2d); return ((n ^ (n >>> 15)) >>> 0) / 4294967296; }
+const glyphWear = {};
+for (let c = 32; c < 128; c++) glyphWear[c] = { dy: (hash(c) - .5) * 2.4, dx: (hash(c + 999) - .5) * 1.2, ink: .82 + hash(c + 77) * .18 };
+const rnd = (a, b) => a + Math.random() * (b - a);
+
+// ---------- papír ----------
+let lines, cur, col, dirty = true, scrollAnim = 0, headX = MARGIN, ribbon = 1;
+function newPaper() { lines = [mkLine()]; cur = 0; dirty = true; }
+function mkLine() { return { strikes: [], cache: null, dirty: true }; }
+
+const paperTex = (() => {               // textura papíru (vlákna + šum), opakuje se
+  const t = document.createElement("canvas"); t.width = 256; t.height = 256;
+  const g = t.getContext("2d"), img = g.createImageData(256, 256);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const v = 238 + (Math.random() - .5) * 10;
+    img.data[i] = v; img.data[i + 1] = v - 3; img.data[i + 2] = v - 11; img.data[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  g.globalAlpha = .05;
+  for (let i = 0; i < 90; i++) { g.strokeStyle = Math.random() < .5 ? "#776" : "#fff"; g.beginPath();
+    const x = Math.random() * 256, y = Math.random() * 256; g.moveTo(x, y); g.lineTo(x + rnd(-30, 30), y + rnd(-4, 4)); g.stroke(); }
+  return t;
+})();
+let paperPattern = null;
+
+function strike(ch) {
+  const code = ch.charCodeAt(0), wear = glyphWear[code] || glyphWear[63];
+  const c = Math.min(col, COLS - 1);         // na konci řádku tiskne přes poslední sloupec
+  const ink = wear.ink * rnd(.62, 1) * ribbon;
+  lines[cur].strikes.push({
+    ch, col: c,
+    dx: wear.dx + rnd(-.6, .6), dy: wear.dy + rnd(-.9, .9), r: rnd(-.025, .025),
+    a1: ink * rnd(.55, 1), a2: ink * rnd(.55, 1), heavy: Math.random() < .35,
+  });
+  lines[cur].dirty = true;
+  ribbon = Math.max(.75, ribbon - .00002);   // páska pomalu bledne
+}
+
+function renderLine(L) {
+  if (!L.cache) { L.cache = document.createElement("canvas"); L.cache.width = W * DPR; L.cache.height = LH * 2 * DPR; }
+  const g = L.cache.getContext("2d");
+  g.setTransform(DPR, 0, 0, DPR, 0, 0);
+  g.clearRect(0, 0, W, LH * 2);
+  g.font = FONT; g.textBaseline = "alphabetic";
+  for (const s of L.strikes) {
+    g.save();
+    g.translate(MARGIN + s.col * CW + s.dx, LH * 1.35 + s.dy);
+    g.rotate(s.r);
+    const grad = g.createLinearGradient(0, -FONT_PX * .8, CW * .4, 0);   // nerovnoměrný úder
+    grad.addColorStop(0, `rgba(22,20,24,${s.a1})`); grad.addColorStop(1, `rgba(22,20,24,${s.a2})`);
+    g.fillStyle = grad; g.strokeStyle = grad; g.lineJoin = "round";
+    g.shadowColor = `rgba(22,20,24,${(s.a1 + s.a2) * .45})`; g.shadowBlur = 2.4;   // rozpitá barva
+    g.lineWidth = s.heavy ? 1.9 : 1.3;                                             // ražené tlusté písmo
+    g.strokeText(s.ch, 0, 0);
+    g.fillText(s.ch, 0, 0);
+    if (s.heavy) { g.shadowBlur = 0; g.fillText(s.ch, .6, .3); }
+    g.restore();
+  }
+  L.dirty = false;
+}
+
+function render() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  const paperBottom = PRINT_Y + 16;
+  // papír (textura se posouvá s textem)
+  if (!paperPattern) paperPattern = ctx.createPattern(paperTex, "repeat");
+  const shift = (cur * LH - scrollAnim) % 256;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(30, 0, W - 60, paperBottom); ctx.clip();
+  ctx.translate(0, -shift); ctx.fillStyle = paperPattern; ctx.fillRect(0, shift - 256, W, paperBottom + 512);
+  ctx.restore();
+  // řádky
+  for (let i = cur; i >= 0; i--) {
+    const y = PRINT_Y - (cur - i) * LH + scrollAnim - LH * 1.35;
+    if (y < -LH * 2) break;
+    const L = lines[i];
+    if (L.dirty) renderLine(L);
+    ctx.drawImage(L.cache, 0, y, W, LH * 2);
+  }
+  // stín nahoře (papír se odvíjí od kamery) a okraje role
+  let g = ctx.createLinearGradient(0, 0, 0, H * .45);
+  g.addColorStop(0, "rgba(10,9,8,.85)"); g.addColorStop(1, "rgba(10,9,8,0)");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H * .45);
+  g = ctx.createLinearGradient(30, 0, W - 30, 0);
+  g.addColorStop(0, "rgba(0,0,0,.35)"); g.addColorStop(.06, "rgba(0,0,0,0)");
+  g.addColorStop(.94, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,.35)");
+  ctx.fillStyle = g; ctx.fillRect(30, 0, W - 60, paperBottom);
+  // přítlačná tyč nad tiskovým řádkem
+  // střed mezery mezi 3. a 4. řádkem nad tiskovým (účaří + půlka mezery pod písmeny)
+  const capH = FONT_PX * .62, bailY = PRINT_Y - LH * 3 + (LH - capH) / 2 + 1.5;
+  g = ctx.createLinearGradient(0, bailY - 2.5, 0, bailY + 2.5);
+  g.addColorStop(0, "#fafafa"); g.addColorStop(.5, "#9a9a9a"); g.addColorStop(1, "#3a3a3a");
+  ctx.fillStyle = g; ctx.fillRect(0, bailY - 2.5, W, 5);
+  ctx.fillStyle = "rgba(0,0,0,.14)"; ctx.fillRect(30, bailY + 2.5, W - 60, 3);
+  // válec (platen)
+  g = ctx.createLinearGradient(0, paperBottom, 0, H);
+  g.addColorStop(0, "#2c2b29"); g.addColorStop(.25, "#0d0d0c"); g.addColorStop(.6, "#1d1c1a"); g.addColorStop(1, "#050505");
+  ctx.fillStyle = g; ctx.fillRect(0, paperBottom, W, H - paperBottom);
+  // tisková hlava s typovým válcem
+  headX += (MARGIN + Math.min(col, COLS - 1) * CW - headX) * .35;
+  drawHead(headX + CW / 2, PRINT_Y + 18);
+}
+
+function drawHead(x, y) {
+  ctx.save();
+  ctx.fillStyle = "#111"; ctx.beginPath(); ctx.roundRect(x - 70, y - 8, 140, 22, 6); ctx.fill();   // vodítko pásky
+  ctx.fillStyle = "#1c1a1c"; ctx.fillRect(x - 90, y - 6, 180, 6);                                 // páska
+  const g = ctx.createRadialGradient(x - 8, y + 30, 4, x, y + 38, 40);
+  g.addColorStop(0, "#5b5b5b"); g.addColorStop(.5, "#202020"); g.addColorStop(1, "#050505");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(x, y + 40, 34, 42, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "rgba(200,200,200,.18)";                                                       // znaky na válci
+  for (let r = 0; r < 6; r++) for (let k = -3; k <= 3; k++) ctx.fillRect(x + k * 8 - 2, y + 14 + r * 9, 4, 5);
+  ctx.fillStyle = "#9a9a9a"; ctx.beginPath(); ctx.arc(x, y + 16, 7, 0, Math.PI * 2); ctx.fill();   // matice
+  ctx.restore();
+}
+
+// ---------- zvuk (syntetizovaný, žádné nahrávky) ----------
+const S = { ctx: null };
+function initAudio() {
+  const a = S.ctx = new (window.AudioContext || window.webkitAudioContext)();
+  S.master = a.createGain(); S.master.gain.value = .8; S.master.connect(a.destination);
+  const len = a.sampleRate * 2; S.noise = a.createBuffer(1, len, a.sampleRate);
+  const d = S.noise.getChannelData(0); for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  loadSamples();
+}
+// ---------- skutečné vzorky z videa (sounds/*.wav) ----------
+const SMP = { strike: [], cr: [], motor: null };
+async function loadSamples() {
+  let names = [];
+  try { names = await (await fetch("/sounds.json")).json(); } catch (e) {}
+  await Promise.all(names.map(async (n) => {
+    try {
+      const buf = await S.ctx.decodeAudioData(await (await fetch("/sounds/" + n)).arrayBuffer());
+      if (n.startsWith("strike")) SMP.strike.push(buf);
+      else if (n.startsWith("cr")) SMP.cr.push({ n, buf });
+      else if (n.startsWith("motor")) SMP.motor = buf;
+    } catch (e) { console.warn("vzorek", n, e); }
+  }));
+  SMP.cr.sort((a, b) => a.n.localeCompare(b.n));
+  startMotor();
+}
+function startMotor() {
+  const a = S.ctx;
+  if (SMP.motor) {                              // smyčka motoru z videa
+    const src = a.createBufferSource(); src.buffer = SMP.motor; src.loop = true;
+    const g = a.createGain(); g.gain.value = .32; src.connect(g).connect(S.master); src.start();
+  } else {                                      // náhradní syntetický motor
+    const n = a.createBufferSource(); n.buffer = S.noise; n.loop = true;
+    const lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 220;
+    const mg = a.createGain(); mg.gain.value = .12; n.connect(lp).connect(mg).connect(S.master); n.start();
+    const o = a.createOscillator(); o.frequency.value = 60; const og = a.createGain(); og.gain.value = .04;
+    o.connect(og).connect(S.master); o.start();
+  }
+}
+function playBuf(buf, gain, rate = 1, delay = 0) {
+  const a = S.ctx, src = a.createBufferSource(), g = a.createGain();
+  src.buffer = buf; src.playbackRate.value = rate; g.gain.value = gain;
+  src.connect(g).connect(S.master); src.start(a.currentTime + delay);
+}
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+let crChoice = 0;   // který vzorek návratu vozíku (klávesa F8 přepíná)
+function burst(freq, q, dur, gain, delay = 0, type = "bandpass") {
+  const a = S.ctx, t = a.currentTime + delay;
+  const src = a.createBufferSource(); src.buffer = S.noise;
+  const f = a.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+  const g = a.createGain(); g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(.001, t + dur);
+  src.connect(f).connect(g).connect(S.master); src.start(t, Math.random() * 1.5, dur + .05);
+}
+function thump(freq, dur, gain, delay = 0) {
+  const a = S.ctx, t = a.currentTime + delay, o = a.createOscillator(), g = a.createGain();
+  o.frequency.setValueAtTime(freq, t); o.frequency.exponentialRampToValueAtTime(freq * .6, t + dur);
+  g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(.001, t + dur);
+  o.connect(g).connect(S.master); o.start(t); o.stop(t + dur + .02);
+}
+const snd = {
+  strike() { burst(rnd(2000, 3400), 1.1, .035, .9); burst(rnd(650, 950), 2, .06, .45, .004); thump(rnd(100, 140), .05, .5); },
+  space() { burst(rnd(800, 1000), 1.5, .03, .3); thump(90, .03, .2); },
+  cr() {    // vozík jede doleva a narazí
+    const a = S.ctx, t = a.currentTime, src = a.createBufferSource(); src.buffer = S.noise;
+    const f = a.createBiquadFilter(); f.type = "lowpass"; f.frequency.setValueAtTime(350, t); f.frequency.linearRampToValueAtTime(1500, t + .2);
+    const g = a.createGain(); g.gain.setValueAtTime(.35, t); g.gain.exponentialRampToValueAtTime(.01, t + .24);
+    src.connect(f).connect(g).connect(S.master); src.start(t, Math.random(), .3);
+    burst(900, 1, .12, 1, .2); thump(75, .14, .9, .2);
+  },
+  lf() { burst(1300, 3, .05, .5); thump(170, .04, .3); },
+  bell() { for (const [fr, gn] of [[1250, .25], [2510, .1]]) { const a = S.ctx, t = a.currentTime, o = a.createOscillator(), g = a.createGain();
+    o.frequency.value = fr; g.gain.setValueAtTime(gn, t); g.gain.exponentialRampToValueAtTime(.001, t + 1.3); o.connect(g).connect(S.master); o.start(t); o.stop(t + 1.4); } },
+};
+function play(name) {
+  if (!S.ctx) return;
+  if (SMP.strike.length) {
+    if (name === "strike") return playBuf(pick(SMP.strike), rnd(.75, 1), rnd(.96, 1.04));
+    if (name === "space") return playBuf(pick(SMP.strike), rnd(.25, .35), rnd(.85, .9));
+    if (name === "lf") return playBuf(pick(SMP.strike), .45, rnd(.7, .75));
+    if (name === "cr" && SMP.cr.length) return playBuf(SMP.cr[crChoice % SMP.cr.length].buf, .9);
+  }
+  snd[name]();
+}
+
+// ---------- tisk znaků v rychlosti 10 zn/s ----------
+const queueOut = []; let turbo = false, lid = false, budget = 0, last = 0;
+function out(ch, sound) {
+  const code = ch.charCodeAt(0) & 0x7f;
+  if (code === 13) { col = 0; if (sound) play("cr"); }
+  else if (code === 10) { lines.push(mkLine()); cur++; scrollAnim += LH; if (lines.length > 3000) { lines.splice(0, 1000); cur -= 1000; } if (sound) play("lf"); }
+  else if (code === 7) { if (sound) play("bell"); }
+  else if (code === 9) { do { col++; } while (col % 8 && col < COLS); if (sound) play("space"); }
+  else if (code === 32) { col = Math.min(col + 1, COLS); if (sound) play("space"); }
+  else if (code > 32 && code < 127) {
+    strike(String.fromCharCode(code).toUpperCase());   // Model 33 má jen velká písmena
+    col = Math.min(col + 1, COLS);
+    if (sound) play("strike");
+  }
+  dirty = true;
+}
+function frame(t) {
+  const dt = last ? (t - last) / 1000 : 0; last = t;
+  budget += dt * (turbo ? 3000 : 10);
+  let n = 0;
+  while (budget >= 1 && queueOut.length) { budget--; out(queueOut.shift(), !turbo || n++ % 40 === 0); }
+  if (!queueOut.length) budget = Math.min(budget, 1);
+  if (scrollAnim > .3) { scrollAnim *= Math.pow(.0005, dt); dirty = true; } else scrollAnim = 0;
+  if (Math.abs(MARGIN + Math.min(col, COLS - 1) * CW - headX) > .5) dirty = true;
+  if (dirty) { render(); dirty = false; }
+  requestAnimationFrame(frame);
+}
+
+// ---------- spojení se serverem ----------
+function connect() {
+  const es = new EventSource("/stream");
+  es.onmessage = (e) => {
+    const m = JSON.parse(e.data);
+    if (m.h !== undefined) { newPaper(); col = 0; queueOut.length = 0; for (const ch of m.h) out(ch, false); scrollAnim = 0; }
+    if (m.d) for (const ch of m.d) queueOut.push(ch);
+  };
+}
+let sending = Promise.resolve();
+function send(str) { sending = sending.then(() => fetch("/key", { method: "POST", body: str }).catch(() => {})); }
+
+window.addEventListener("keydown", (e) => {
+  if (e.key === "F5") { e.preventDefault(); toggleTurbo(); return; }
+  if (e.key === "F7") { e.preventDefault(); toggleLid(); return; }
+  if (e.key === "F8" && SMP.cr.length) {         // vyzkoušet další kandidát na návrat vozíku
+    e.preventDefault(); crChoice = (crChoice + 1) % SMP.cr.length;
+    document.getElementById("crName").textContent = SMP.cr[crChoice].n; play("cr"); return;
+  }
+  if (e.metaKey || e.altKey) return;
+  let s = null;
+  if (e.ctrlKey && e.key.length === 1) s = String.fromCharCode(e.key.toUpperCase().charCodeAt(0) & 0x1f);
+  else if (e.key === "Enter") s = "\r";
+  else if (e.key === "Backspace") s = "#";      // v0: # maže předchozí znak
+  else if (e.key === "Tab") s = "\t";
+  else if (e.key === "Escape") s = "\x1b";
+  else if (e.key.length === 1) s = e.key.toLowerCase();
+  if (s !== null) { e.preventDefault(); send(s); }
+});
+
+function toggleTurbo() { turbo = !turbo; document.getElementById("bTurbo").classList.toggle("on", turbo); }
+function toggleLid() { lid = !lid; document.getElementById("bLid").classList.toggle("on", lid); if (S.master) S.master.gain.value = lid ? .2 : .8; }
+document.getElementById("bTurbo").onclick = (e) => { toggleTurbo(); e.target.blur(); };
+document.getElementById("bLid").onclick = (e) => { toggleLid(); e.target.blur(); };
+document.getElementById("bTear").onclick = (e) => { newPaper(); e.target.blur(); };
+document.getElementById("bReset").onclick = (e) => {   // dvojklik-pojistka: první klik se jen zeptá
+  const b = e.target; b.blur();
+  if (!b.dataset.armed) { b.dataset.armed = 1; b.textContent = "Opravdu restart?"; b.classList.add("on");
+    setTimeout(() => { delete b.dataset.armed; b.textContent = "Restart počítače"; b.classList.remove("on"); }, 3000); return; }
+  delete b.dataset.armed; b.textContent = "Restart počítače"; b.classList.remove("on");
+  fetch("/reset", { method: "POST" });
+};
+document.getElementById("bPower").onclick = () => { initAudio(); document.getElementById("power").remove(); };
+
+newPaper(); col = 0;
+window.addEventListener("resize", resize); resize();
+connect();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
