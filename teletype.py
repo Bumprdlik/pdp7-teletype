@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Teletype 33 – prototyp „papírového“ terminálu pro PDP-7 Unix v0.
+"""Teletype 33 - a paper-roll terminal for PDP-7 Unix v0.
 
-Spustí SIMH (pdp7) s konzolí na telnetu, připojí se k ní a přes HTTP
-(Server-Sent Events + POST) ji zpřístupní stránce index.html.
-Jen standardní knihovna Pythonu, poslouchá jen na 127.0.0.1.
+Starts SIMH (pdp7) with its console on telnet, connects to it and exposes it
+to index.html over HTTP (Server-Sent Events + POST).
+Python standard library only; listens on 127.0.0.1 only.
 
-    python3 teletype.py          → http://127.0.0.1:8033
+    python3 teletype.py          -> http://127.0.0.1:8033
 """
 import ctypes
 import json
@@ -25,7 +25,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 UNIX_BUILD = os.path.expanduser(os.environ.get("PDP7_UNIX_BUILD", "~/Applications/pdp7-unix/build"))
 SIMH = os.path.expanduser(os.environ.get("SIMH_PDP7", "~/Applications/simh/BIN/pdp7"))
 DISK_DIR = os.path.join(HERE, "disk")
-TEL_PORT = 0          # konzole SIMH: volný port se vybere při každém startu
+TEL_PORT = 0          # SIMH console: a free port is picked on every start
 HTTP_PORT = 8033
 HISTORY_MAX = 64 * 1024
 
@@ -33,7 +33,7 @@ IAC, DONT, DO, WONT, WILL, SB, SE = 255, 254, 253, 252, 251, 250, 240
 
 
 class Hub:
-    """Rozesílá výstup simulátoru všem připojeným stránkám."""
+    """Broadcasts simulator output to all connected pages."""
 
     def __init__(self):
         self.lock = threading.Lock()
@@ -71,7 +71,7 @@ def prepare_disk():
     img = os.path.join(DISK_DIR, "image.fs")
     if not os.path.exists(img):
         shutil.copy(os.path.join(UNIX_BUILD, "image.fs"), img)
-        print("vytvořena vlastní kopie disku:", img)
+        print("created a private copy of the disk:", img)
     shutil.copy(os.path.join(UNIX_BUILD, "boot.rim"), os.path.join(DISK_DIR, "boot.rim"))
 
 
@@ -84,8 +84,8 @@ def free_port():
 
 
 def start_simh():
-    """Napíše konfiguraci s novým volným portem konzole a spustí SIMH.
-    (Pevný port po ukončení ještě ~60 s drží jádro v TIME_WAIT a SIMH by ho neotevřel.)"""
+    """Write the config with a fresh free console port and start SIMH.
+    (A fixed port stays in TIME_WAIT for ~60 s after exit and SIMH could not reopen it.)"""
     global proc, TEL_PORT
     TEL_PORT = free_port()
     cfg = os.path.join(DISK_DIR, "teletype.simh")
@@ -104,7 +104,7 @@ load boot.rim 010000
 go
 """)
     log = open(os.path.join(DISK_DIR, "simh.log"), "w")
-    def die_with_parent():  # když server umře, SIMH dostane SIGTERM (a uloží disk)
+    def die_with_parent():  # if the server dies, SIMH gets SIGTERM
         ctypes.CDLL("libc.so.6").prctl(1, signal.SIGTERM)  # PR_SET_PDEATHSIG
 
     proc = subprocess.Popen([SIMH, cfg], cwd=DISK_DIR, stdin=subprocess.PIPE,
@@ -115,16 +115,17 @@ restart_q = queue.Queue()
 
 
 def restart_worker():
-    """Trvalé vlákno pro restarty. PR_SET_PDEATHSIG se váže na vlákno, které proces
-    spustilo – kdyby SIMH startovalo krátké vlákno, dostalo by SIGTERM hned po jeho konci."""
+    """Long-lived thread for restarts. PR_SET_PDEATHSIG is tied to the *thread* that
+    spawned the process - if a short-lived thread started SIMH, it would get SIGTERM
+    as soon as that thread exited."""
     while True:
         restart_q.get()
         restart_simh()
 
 
 def stop_simh():
-    """Korektně vypne SIMH: SIGTERM zastaví procesor, pak přes stdin odpojí disk (uloží ho) a quit.
-    Samotný SIGTERM SIMH neukončí – jen čeká na příkaz."""
+    """Shut SIMH down cleanly: SIGTERM stops the CPU, then detach the disk (saving it)
+    and quit via stdin. SIGTERM alone does not exit SIMH - it just waits for a command."""
     global sock
     with sock_lock:
         if sock:
@@ -147,27 +148,27 @@ def stop_simh():
     try:
         proc.wait(timeout=10)
     except subprocess.TimeoutExpired:
-        print("SIMH nereaguje, ukončuji natvrdo")
+        print("SIMH not responding, killing it")
         proc.kill()
         proc.wait()
 
 
 def restart_simh():
-    """Vypne simulátor (uloží disk) a nastartuje ho znovu – jako vypínač na PDP-7."""
+    """Power-cycle the PDP-7: stop the simulator (saving the disk) and start it again."""
     stop_simh()
-    hub.publish(b"\r\n\r\n[RESTART POCITACE]\r\n")
+    hub.publish(b"\r\n\r\n[COMPUTER RESTART]\r\n")
     start_simh()
 
 
 def telnet_loop():
-    """Připojí se ke konzoli SIMH, odfiltruje telnetové příkazy, výstup pošle do Hubu."""
+    """Connect to the SIMH console, strip telnet commands, publish output to the hub."""
     global sock
     while True:
         try:
             s = socket.create_connection(("127.0.0.1", TEL_PORT), timeout=2)
             s.settimeout(None)
         except OSError:
-            time.sleep(0.3)  # simulátor ještě startuje (nebo se restartuje)
+            time.sleep(0.3)  # simulator still starting (or restarting)
             continue
         with sock_lock:
             sock = s
@@ -216,12 +217,12 @@ def telnet_loop():
         except OSError:
             pass
         if proc and proc.poll() is not None:
-            hub.publish(b"\r\n\r\n[SIMULATOR VYPNUT]\r\n")
+            hub.publish(b"\r\n\r\n[SIMULATOR STOPPED]\r\n")
         time.sleep(0.5)
 
 
 def send_keys(data: bytes):
-    data = data.replace(b"\xff", b"\xff\xff")  # binární režim: CR posíláme bez NUL
+    data = data.replace(b"\xff", b"\xff\xff")  # binary mode: CR is sent without NUL
     with sock_lock:
         if sock:
             try:
@@ -304,25 +305,25 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     if not os.path.exists(SIMH):
-        sys.exit(f"chybí simulátor {SIMH}")
+        sys.exit(f"simulator not found: {SIMH} (set SIMH_PDP7)")
     signal.signal(signal.SIGTERM, lambda *a: (_ for _ in ()).throw(KeyboardInterrupt))
     srv = None
-    for i in range(20):  # předchozí běh se možná ještě ukončuje
+    for i in range(20):  # a previous run may still be shutting down
         try:
             srv = ThreadingHTTPServer(("127.0.0.1", HTTP_PORT), Handler)
             break
         except OSError:
             if i == 0:
-                print(f"port {HTTP_PORT} je obsazený, čekám…")
+                print(f"port {HTTP_PORT} is busy, waiting...")
             time.sleep(0.5)
     if not srv:
-        sys.exit(f"port {HTTP_PORT} je pořád obsazený – neběží teletype jinde?")
+        sys.exit(f"port {HTTP_PORT} is still busy - is teletype running elsewhere?")
     prepare_disk()
     start_simh()
     threading.Thread(target=telnet_loop, daemon=True).start()
     threading.Thread(target=restart_worker, daemon=True).start()
     url = f"http://127.0.0.1:{HTTP_PORT}"
-    print(f"Teletype běží na {url}  (Ctrl+C = konec)")
+    print(f"Teletype running at {url}  (Ctrl+C to quit)")
     if "--no-browser" not in sys.argv:
         webbrowser.open(url)
     try:
@@ -331,7 +332,7 @@ def main():
         pass
     finally:
         srv.server_close()
-        print("ukládám disk a vypínám PDP-7…")
+        print("saving disk and powering off the PDP-7...")
         stop_simh()
 
 
