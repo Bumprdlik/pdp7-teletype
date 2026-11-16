@@ -397,12 +397,13 @@ const V0_TIPS = [                              // [topic, text]; not part of the
   ["..", "means THIS directory, not the parent. There are no / paths: walk one directory at a time via dd."],
   ["#", "erases the previous character (it stays visible on paper)"],
   ["@", "kills the whole line"],
+  ["Esc", "ALT MODE: interrupts a running program, like Ctrl+C today (e.g. ed). The login shell ignores it on purpose. Programs may leave temp files behind (ed: e.tmp)."],
   ["FILES", "ls, list (details), stat, cat, cp, mv, ln, rm, chmod, chown, od"],
   ["ed", "a (append text) ... . (end), p, 1,$p, /word/, w name, q. A reply of ? means error."],
   ["B LANGUAGE", "in dmr's directory: b hello.b hello.s, then as op.s bl.s hello.s bi.s, then a.out"],
   ["DO NOT", "run n.out - it is the assembler's symbol table, not a program. It hangs the machine; use Restart computer."],
   ["", "run init - it is the system's first process; a second copy fights the shell for the terminal."],
-  ["LOG OUT", "there is no real logout (Ctrl+D is not end of input in v0); to switch users use Restart computer."],
+  ["LOG OUT", "there is no real logout: Ctrl+D is not end of input in v0 and the shell ignores Esc. To switch users use Restart computer."],
 ];
 const V0_TIPS_TEXT = V0_TIPS.map(([k, v]) => k + " " + v).join("\n");
 let manPages = [], manSel = 0, manLoaded = false;
