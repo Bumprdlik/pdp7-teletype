@@ -53,6 +53,7 @@
   #kbd { position: fixed; left: 0; bottom: 0; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0;
          resize: none; font-size: 16px; /* 16px: iOS does not zoom in on focus */ }
   #more { display: contents; }                 /* desktop: the menu items sit in the bar */
+  #more .size { display: none; }
   #bar .touch, #bar .compact { display: none; }
   @media (pointer: coarse) { #bar .touch { display: inline-block; } }
   /* phones and small windows: Keyboard, Esc, Manual stay in the bar, the rest goes into the ☰ menu */
@@ -67,6 +68,21 @@
     #more button { text-align: left; padding: 8px 14px; }
     :root { --manw: 100vw; }
     body.manopen #stage { padding-left: 0; }
+    #more .size { display: flex; gap: 6px; }
+    #more .size button { flex: 1; text-align: center; }
+  }
+  /* phones in landscape: the bar becomes a column on the left, so the paper keeps the full height */
+  @media (pointer: coarse) and (orientation: landscape) {
+    :root { --sidew: 104px; }
+    #bar { top: 0; bottom: 0; right: auto; width: var(--sidew); box-sizing: border-box; flex-direction: column;
+           align-items: stretch; padding: 8px 6px; background: linear-gradient(90deg, #000d, #0000); }
+    #bar .compact { margin-left: 0; }
+    #more { top: 8px; right: auto; left: calc(100% + 4px); max-height: calc(100% - 16px); overflow-y: auto; }
+    #stage { left: var(--sidew); }
+    #man { top: 0; left: var(--sidew); width: calc(100vw - var(--sidew));
+           transform: translateX(calc(-100% - var(--sidew))); }   /* closed: fully off screen, not under the bar */
+    #man.open { transform: none; }
+    #more .size { display: none; }             /* the type size only matters in portrait */
   }
 </style>
 </head>
@@ -82,6 +98,7 @@
     <button id="bTear">Tear off paper</button>
     <button id="bReset" title="power-cycles the PDP-7 (the disk is saved)">Restart computer</button>
     <button id="bWipe" title="throws away your files and starts with the original 1970 disk" hidden>Factory disk</button>
+    <div class="size"><button id="bSmaller" title="smaller type">A−</button><button id="bLarger" title="larger type">A+</button></div>
   </div>
   <span class="hint">F8 = next carriage sound (<b id="crName">cr_1.wav</b>)</span>
   <span class="hint">login: ken / ken · Backspace = # · stuck? → Restart computer</span>
@@ -110,23 +127,28 @@ let H = 0, PRINT_Y = 0, DPR = 1, SCALE = 1;
 // Phones: in portrait the whole 72-column line would make the type tiny, so the paper is shown
 // larger and pans sideways after the print head (PAN). In a short window (landscape with the
 // keyboard open) the print head is left out and only the paper is shown (SHORT).
-const MIN_PORTRAIT_SCALE = .5;
+// The portrait scale can be changed with A− / A+ in the menu and is remembered.
+const TYPE_SCALES = [.4, .5, .6, .7, .8, .9, 1];
+let portraitScale = .7;
+try { const v = parseFloat(localStorage.getItem("pdp7-portrait-scale")); if (TYPE_SCALES.includes(v)) portraitScale = v; } catch (e) {}
+const SIDE_MQ = "(pointer: coarse) and (orientation: landscape)";
 let PAN = false, VIS_W = 0, SHORT = false;
 
 function resize() {
   DPR = window.devicePixelRatio || 1;
   let manW = document.body.classList.contains("manopen") ? document.getElementById("man").offsetWidth : 0;
-  if (manW >= window.innerWidth * .9) manW = 0;   // full-screen manual (phones): the paper stays behind it
+  const compact = matchMedia("(max-width: 900px), (pointer: coarse)").matches;
+  if (compact) manW = 0;                           // full-screen manual (phones): the paper stays behind it
+  const side = matchMedia(SIDE_MQ).matches, barEl = document.getElementById("bar");
   const vv = window.visualViewport;
   const viewH = vv ? vv.height : window.innerHeight;                    // minus the phone keyboard
-  const compact = matchMedia("(max-width: 900px), (pointer: coarse)").matches;
-  const availW = window.innerWidth - manW - (compact ? 0 : 24);
+  const availW = window.innerWidth - manW - (side ? barEl.offsetWidth : compact ? 0 : 24);
   const fit = Math.min(1, availW / W);
-  SCALE = compact && window.innerHeight > window.innerWidth ? Math.max(fit, MIN_PORTRAIT_SCALE) : fit;
+  SCALE = compact && window.innerHeight > window.innerWidth ? Math.max(fit, portraitScale) : fit;
   PAN = W * SCALE > availW + 1;
   VIS_W = availW / SCALE;
   SHORT = viewH < 360;
-  const top = SHORT ? document.getElementById("bar").offsetHeight : 0;  // don't print under the button bar
+  const top = SHORT && !side ? barEl.offsetHeight : 0;  // don't print under the button bar
   H = Math.round((viewH - 10 - top) / SCALE);
   PRINT_Y = SHORT ? H - 34 : H - 120;
   cv.width = W * DPR; cv.height = H * DPR;
@@ -539,6 +561,14 @@ bMenu.onclick = () => {
   more.classList.toggle("open", open); bMenu.classList.toggle("on", open); bMenu.setAttribute("aria-expanded", String(open));
 };
 document.addEventListener("pointerdown", (e) => { if (!e.target.closest("#more, #bMenu")) closeMenu(); });
+function changeTypeSize(step) {
+  const i = TYPE_SCALES.indexOf(portraitScale);
+  portraitScale = TYPE_SCALES[Math.max(0, Math.min(TYPE_SCALES.length - 1, i + step))];
+  try { localStorage.setItem("pdp7-portrait-scale", String(portraitScale)); } catch (e) {}
+  resize();
+}
+document.getElementById("bSmaller").onclick = () => changeTypeSize(-1);
+document.getElementById("bLarger").onclick = () => changeTypeSize(1);
 
 function toggleTurbo() { turbo = !turbo; document.getElementById("bTurbo").classList.toggle("on", turbo); }
 function toggleLid() { lid = !lid; document.getElementById("bLid").classList.toggle("on", lid); if (S.master) S.master.gain.value = lid ? .2 : .8; }
