@@ -52,11 +52,19 @@
   /* hidden text field: phones only show their on-screen keyboard for a focused text field */
   #kbd { position: fixed; left: 0; bottom: 0; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0;
          resize: none; font-size: 16px; /* 16px: iOS does not zoom in on focus */ }
-  #bar .touch { display: none; }
+  #more { display: contents; }                 /* desktop: the menu items sit in the bar */
+  #bar .touch, #bar .compact { display: none; }
   @media (pointer: coarse) { #bar .touch { display: inline-block; } }
-  @media (max-width: 760px) {
-    #bar { flex-wrap: wrap; gap: 6px; padding: 6px 8px; }
+  /* phones and small windows: Keyboard, Esc, Manual stay in the bar, the rest goes into the ☰ menu */
+  @media (max-width: 900px), (pointer: coarse) {
+    #bar { gap: 6px; padding: 6px 8px; }
     #bar .hint { display: none; }
+    #bar .compact { display: inline-block; margin-left: auto; }
+    #more { display: none; position: absolute; top: 100%; right: 8px; flex-direction: column; align-items: stretch;
+            gap: 6px; padding: 8px; background: #1d1b18f2; border: 1px solid #4a463e; border-radius: 6px;
+            box-shadow: 0 10px 30px #000a; }
+    #more.open { display: flex; }
+    #more button { text-align: left; padding: 8px 14px; }
     :root { --manw: 100vw; }
     body.manopen #stage { padding-left: 0; }
   }
@@ -64,14 +72,17 @@
 </head>
 <body>
 <div id="bar">
-  <button id="bTurbo" title="F5">Turbo</button>
-  <button id="bLid" title="F7">Lid</button>
-  <button id="bTear">Tear off paper</button>
-  <button id="bMan" title="F2">Manual</button>
-  <button id="bReset" title="power-cycles the PDP-7 (the disk is saved)">Restart computer</button>
-  <button id="bKbd" class="touch" title="show the keyboard">Keyboard</button>
+  <button id="bKbd" class="touch" title="show / hide the keyboard">Keyboard</button>
   <button id="bEsc" class="touch" title="ALT MODE: interrupts a running program">Esc</button>
-  <button id="bWipe" title="throws away your files and starts with the original 1970 disk" hidden>Factory disk</button>
+  <button id="bMan" title="F2">Manual</button>
+  <button id="bMenu" class="compact" title="more" aria-haspopup="true" aria-expanded="false">☰</button>
+  <div id="more">
+    <button id="bTurbo" title="F5">Turbo</button>
+    <button id="bLid" title="F7">Lid</button>
+    <button id="bTear">Tear off paper</button>
+    <button id="bReset" title="power-cycles the PDP-7 (the disk is saved)">Restart computer</button>
+    <button id="bWipe" title="throws away your files and starts with the original 1970 disk" hidden>Factory disk</button>
+  </div>
   <span class="hint">F8 = next carriage sound (<b id="crName">cr_1.wav</b>)</span>
   <span class="hint">login: ken / ken · Backspace = # · stuck? → Restart computer</span>
 </div>
@@ -99,7 +110,8 @@ let H = 0, PRINT_Y = 0, DPR = 1;
 
 function resize() {
   DPR = window.devicePixelRatio || 1;
-  const manW = document.body.classList.contains("manopen") ? document.getElementById("man").offsetWidth : 0;
+  let manW = document.body.classList.contains("manopen") ? document.getElementById("man").offsetWidth : 0;
+  if (manW >= window.innerWidth * .9) manW = 0;   // full-screen manual (phones): the paper stays behind it
   const scale = Math.min(1, (window.innerWidth - manW - 24) / W);
   const viewH = window.visualViewport ? window.visualViewport.height : window.innerHeight;  // minus the phone keyboard
   H = Math.round((viewH - 10) / scale);
@@ -445,17 +457,34 @@ kbd.addEventListener("input", (e) => {
 });
 kbd.addEventListener("compositionend", kbdReset);
 kbd.addEventListener("focus", kbdReset);
+const kbdOpen = () => document.activeElement === kbd;
 const showKeyboard = () => { if (!document.body.classList.contains("manopen")) kbd.focus({ preventScroll: true }); };
-document.getElementById("stage").addEventListener("click", showKeyboard);
-document.getElementById("bKbd").onclick = showKeyboard;
-document.getElementById("bEsc").onclick = () => { send("\x1b"); showKeyboard(); };
+const hideKeyboard = () => kbd.blur();
+const bKbd = document.getElementById("bKbd");
+kbd.addEventListener("focus", () => bKbd.classList.add("on"));
+kbd.addEventListener("blur", () => bKbd.classList.remove("on"));
+document.getElementById("stage").addEventListener("click", () => { closeMenu(); showKeyboard(); });
+bKbd.onclick = () => (kbdOpen() ? hideKeyboard() : showKeyboard());
+document.getElementById("bEsc").onclick = () => send("\x1b");
+// Tapping a bar button must not take the focus from the hidden field (that would close the keyboard).
+for (const b of document.querySelectorAll("#bar button"))
+  for (const t of ["pointerdown", "mousedown"]) b.addEventListener(t, (e) => e.preventDefault());
+
+// ---------- ☰ menu (phones and small windows) ----------
+const more = document.getElementById("more"), bMenu = document.getElementById("bMenu");
+function closeMenu() { more.classList.remove("open"); bMenu.classList.remove("on"); bMenu.setAttribute("aria-expanded", "false"); }
+bMenu.onclick = () => {
+  const open = !more.classList.contains("open");
+  more.classList.toggle("open", open); bMenu.classList.toggle("on", open); bMenu.setAttribute("aria-expanded", String(open));
+};
+document.addEventListener("pointerdown", (e) => { if (!e.target.closest("#more, #bMenu")) closeMenu(); });
 
 function toggleTurbo() { turbo = !turbo; document.getElementById("bTurbo").classList.toggle("on", turbo); }
 function toggleLid() { lid = !lid; document.getElementById("bLid").classList.toggle("on", lid); if (S.master) S.master.gain.value = lid ? .2 : .8; }
 document.getElementById("bTurbo").onclick = (e) => { toggleTurbo(); e.target.blur(); };
 document.getElementById("bLid").onclick = (e) => { toggleLid(); e.target.blur(); };
 document.getElementById("back").onclick = () => scrollTo(0);
-document.getElementById("bTear").onclick = (e) => { newPaper(); e.target.blur(); };
+document.getElementById("bTear").onclick = (e) => { newPaper(); e.target.blur(); closeMenu(); };
 function confirmButton(id, question, action) {           // safety: the first click only asks
   const b = document.getElementById(id), label = b.textContent;
   b.onclick = () => {
@@ -463,7 +492,7 @@ function confirmButton(id, question, action) {           // safety: the first cl
     if (!b.dataset.armed) { b.dataset.armed = 1; b.textContent = question; b.classList.add("on");
       setTimeout(() => { delete b.dataset.armed; b.textContent = label; b.classList.remove("on"); }, 3000); return; }
     delete b.dataset.armed; b.textContent = label; b.classList.remove("on");
-    action();
+    closeMenu(); action();
   };
 }
 confirmButton("bReset", "Really restart?", () => restartComputer());
@@ -570,9 +599,17 @@ function toggleMan(force) {
   const m = document.getElementById("man"), open = force ?? !m.classList.contains("open");
   m.classList.toggle("open", open); document.getElementById("bMan").classList.toggle("on", open);
   document.body.classList.toggle("manopen", open); resize();
-  if (open) { loadMan(); setTimeout(() => document.getElementById("manQ").focus(), 50); }
-  else document.getElementById("manQ").blur();
+  if (open) {
+    closeMenu();
+    kbdBeforeMan = kbdOpen(); hideKeyboard();           // the phone keyboard would cover the manual
+    loadMan();
+    if (!matchMedia("(pointer: coarse)").matches) setTimeout(() => document.getElementById("manQ").focus(), 50);
+  } else {
+    document.getElementById("manQ").blur();
+    if (kbdBeforeMan) showKeyboard();
+  }
 }
+let kbdBeforeMan = false;
 document.getElementById("bMan").onclick = (e) => { e.target.blur(); toggleMan(); };
 document.getElementById("manClose").onclick = () => toggleMan(false);
 document.getElementById("manQ").addEventListener("input", () => renderManList());
