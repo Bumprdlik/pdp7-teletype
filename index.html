@@ -53,7 +53,7 @@
   #kbd { position: fixed; left: 0; bottom: 0; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0;
          resize: none; font-size: 16px; /* 16px: iOS does not zoom in on focus */ }
   #more { display: contents; }                 /* desktop: the menu items sit in the bar */
-  #more .size { display: none; }
+  #more .size, #more .build { display: none; }
   #bar .touch, #bar .compact { display: none; }
   @media (pointer: coarse) { #bar .touch { display: inline-block; } }
   /* phones and small windows: Keyboard, Esc, Manual stay in the bar, the rest goes into the ☰ menu */
@@ -66,6 +66,7 @@
             box-shadow: 0 10px 30px #000a; }
     #more.open { display: flex; }
     #more button { text-align: left; padding: 8px 14px; }
+    #more .build { display: block; font-size: 11px; opacity: .55; text-align: center; }
     :root { --manw: 100vw; }
     body.manopen #stage { padding-left: 0; }
     #more .size { display: flex; gap: 6px; }
@@ -99,6 +100,7 @@
     <button id="bReset" title="power-cycles the PDP-7 (the disk is saved)">Restart computer</button>
     <button id="bWipe" title="throws away your files and starts with the original 1970 disk" hidden>Factory disk</button>
     <div class="size"><button id="bSmaller" title="smaller type">A−</button><button id="bLarger" title="larger type">A+</button></div>
+    <div id="build" class="build"></div>
   </div>
   <span class="hint">F8 = next carriage sound (<b id="crName">cr_1.wav</b>)</span>
   <span class="hint">login: ken / ken · Backspace = # · stuck? → Restart computer</span>
@@ -429,6 +431,8 @@ function frame(t) {
 // STATIC_BUILD is switched on by web/build.sh: the PDP-7 then runs in this browser
 // (SIMH compiled to WebAssembly, in a Web Worker) instead of behind teletype.py.
 const STATIC_BUILD = false;
+const BUILD = "dev";                               // web/build.sh puts the commit id here
+document.getElementById("build").textContent = "build " + BUILD;
 let send, restartComputer, wipeDisk = null;
 
 if (!STATIC_BUILD) {

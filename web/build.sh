@@ -65,7 +65,9 @@ fi
 say "assembling $DIST"
 rm -rf "$DIST"; mkdir -p "$DIST"
 cp "$BUILD/simh/pdp7.js" "$BUILD/simh/pdp7.wasm" "$WEB/pdp7-worker.js" "$DIST/"
-sed 's/^const STATIC_BUILD = false;/const STATIC_BUILD = true;/' "$ROOT/index.html" > "$DIST/index.html"
+BUILD_ID="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"   # shown in the ☰ menu
+sed -e 's/^const STATIC_BUILD = false;/const STATIC_BUILD = true;/' \
+    -e "s/^const BUILD = \"dev\";/const BUILD = \"$BUILD_ID\";/" "$ROOT/index.html" > "$DIST/index.html"
 grep -q '^const STATIC_BUILD = true;' "$DIST/index.html" || fail "could not switch index.html to the static build"
 gzip -9 -n -c "$PDP7_UNIX/build/image.fs" > "$DIST/image.fs.gz"
 cp "$PDP7_UNIX/build/boot.rim" "$DIST/"
