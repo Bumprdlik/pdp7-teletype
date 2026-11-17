@@ -14,7 +14,7 @@
   #bar button.on { background: #6b4f1d; border-color: #a77c2c; }
   #bar .hint { margin-left: auto; opacity: .7; }
   :root { --manw: clamp(360px, 40vw, 640px); }
-  #stage { position: absolute; inset: 0; perspective: 1300px; display: flex; justify-content: center; align-items: flex-end;
+  #stage { position: absolute; inset: 0; overflow: hidden; perspective: 1300px; display: flex; justify-content: center; align-items: flex-end;
            transition: padding-left .25s ease; }
   body.manopen #stage { padding-left: var(--manw); }
   #tilt { transform-origin: 50% 100%; transform: rotateX(13deg); }
@@ -106,19 +106,56 @@ const cv = document.getElementById("c"), ctx = cv.getContext("2d");
 ctx.font = FONT;
 const CW = Math.round(ctx.measureText("M").width * 1.04), LH = Math.round(CW * 1.66);
 const MARGIN = 70, W = MARGIN * 2 + COLS * CW;
-let H = 0, PRINT_Y = 0, DPR = 1;
+let H = 0, PRINT_Y = 0, DPR = 1, SCALE = 1;
+// Phones: in portrait the whole 72-column line would make the type tiny, so the paper is shown
+// larger and pans sideways after the print head (PAN). In a short window (landscape with the
+// keyboard open) the print head is left out and only the paper is shown (SHORT).
+const MIN_PORTRAIT_SCALE = .5;
+let PAN = false, VIS_W = 0, SHORT = false;
 
 function resize() {
   DPR = window.devicePixelRatio || 1;
   let manW = document.body.classList.contains("manopen") ? document.getElementById("man").offsetWidth : 0;
   if (manW >= window.innerWidth * .9) manW = 0;   // full-screen manual (phones): the paper stays behind it
-  const scale = Math.min(1, (window.innerWidth - manW - 24) / W);
-  const viewH = window.visualViewport ? window.visualViewport.height : window.innerHeight;  // minus the phone keyboard
-  H = Math.round((viewH - 10) / scale);
-  PRINT_Y = H - 120;
+  const vv = window.visualViewport;
+  const viewH = vv ? vv.height : window.innerHeight;                    // minus the phone keyboard
+  const compact = matchMedia("(max-width: 900px), (pointer: coarse)").matches;
+  const availW = window.innerWidth - manW - (compact ? 0 : 24);
+  const fit = Math.min(1, availW / W);
+  SCALE = compact && window.innerHeight > window.innerWidth ? Math.max(fit, MIN_PORTRAIT_SCALE) : fit;
+  PAN = W * SCALE > availW + 1;
+  VIS_W = availW / SCALE;
+  SHORT = viewH < 360;
+  const top = SHORT ? document.getElementById("bar").offsetHeight : 0;  // don't print under the button bar
+  H = Math.round((viewH - 10 - top) / SCALE);
+  PRINT_Y = SHORT ? H - 34 : H - 120;
   cv.width = W * DPR; cv.height = H * DPR;
-  cv.style.width = W * scale + "px"; cv.style.height = H * scale + "px";
+  cv.style.width = W * SCALE + "px"; cv.style.height = H * SCALE + "px";
+  const stage = document.getElementById("stage");
+  stage.style.justifyContent = PAN ? "flex-start" : "";
+  // iOS does not shrink the page for the keyboard, it covers it: keep the paper above the keyboard
+  stage.style.bottom = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) + "px" : "";
+  if (!PAN) panX = panTarget = 0;
+  panTarget = Math.max(0, Math.min(panTarget, W - VIS_W)); panX = panTarget; applyPan();
   dirty = true;
+}
+
+// ---------- sideways panning (phones in portrait) ----------
+let panX = 0, panTarget = 0, panManual = false, panCol = -1;
+function applyPan() {
+  document.getElementById("tilt").style.transform = `translateX(${(-panX * SCALE).toFixed(1)}px) rotateX(13deg)`;
+}
+function updatePan(dt) {
+  if (!PAN) return;
+  if (col !== panCol) { panCol = col; panManual = false; }   // the head moved: follow it again
+  if (!panManual) {
+    const hx = MARGIN + Math.min(col, COLS - 1) * CW;
+    if (hx > panTarget + VIS_W - 60) panTarget = hx - VIS_W + 160;   // ran off the right: jump ahead a bit
+    else if (hx < panTarget + 30) panTarget = hx - 60;               // carriage return
+    panTarget = Math.max(0, Math.min(panTarget, W - VIS_W));
+  }
+  if (Math.abs(panTarget - panX) > .5) { panX += (panTarget - panX) * Math.min(1, dt * 10); applyPan(); }
+  else if (panX !== panTarget) { panX = panTarget; applyPan(); }
 }
 
 // ---------- pseudo-random wear: every character on the type cylinder is worn a bit differently ----------
@@ -205,9 +242,10 @@ function render() {
     ctx.drawImage(L.cache, 0, y, W, LH * 2);
   }
   // shading at the top (paper curves away from the camera) and roll edges
-  let g = ctx.createLinearGradient(0, 0, 0, H * .45);
+  const shadeH = SHORT ? LH : H * .45;
+  let g = ctx.createLinearGradient(0, 0, 0, shadeH);
   g.addColorStop(0, "rgba(10,9,8,.85)"); g.addColorStop(1, "rgba(10,9,8,0)");
-  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H * .45);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, shadeH);
   g = ctx.createLinearGradient(30, 0, W - 30, 0);
   g.addColorStop(0, "rgba(0,0,0,.35)"); g.addColorStop(.06, "rgba(0,0,0,0)");
   g.addColorStop(.94, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0,.35)");
@@ -217,15 +255,18 @@ function render() {
   const capH = FONT_PX * .62, bailY = PRINT_Y - LH * 3 + (LH - capH) / 2 + 1.5;
   g = ctx.createLinearGradient(0, bailY - 2.5, 0, bailY + 2.5);
   g.addColorStop(0, "#fafafa"); g.addColorStop(.5, "#9a9a9a"); g.addColorStop(1, "#3a3a3a");
-  ctx.fillStyle = g; ctx.fillRect(0, bailY - 2.5, W, 5);
-  ctx.fillStyle = "rgba(0,0,0,.14)"; ctx.fillRect(30, bailY + 2.5, W - 60, 3);
+  if (!SHORT) {                               // in a short window the bail would hide a line
+    ctx.fillStyle = g; ctx.fillRect(0, bailY - 2.5, W, 5);
+    ctx.fillStyle = "rgba(0,0,0,.14)"; ctx.fillRect(30, bailY + 2.5, W - 60, 3);
+  }
   // platen
   g = ctx.createLinearGradient(0, paperBottom, 0, H);
   g.addColorStop(0, "#2c2b29"); g.addColorStop(.25, "#0d0d0c"); g.addColorStop(.6, "#1d1c1a"); g.addColorStop(1, "#050505");
   ctx.fillStyle = g; ctx.fillRect(0, paperBottom, W, H - paperBottom);
   // print head with type cylinder
   headX += (MARGIN + Math.min(col, COLS - 1) * CW - headX) * .35;
-  drawHead(headX + CW / 2, PRINT_Y + 18);
+  if (!SHORT) drawHead(headX + CW / 2, PRINT_Y + 18);
+  else { ctx.fillStyle = "#a77c2c"; ctx.fillRect(headX, paperBottom + 3, CW, 4); }   // just a column marker
 }
 
 function drawHead(x, y) {
@@ -347,6 +388,7 @@ function frame(t) {
   while (budget >= 1 && queueOut.length) { budget--; out(queueOut.shift(), !turbo || n++ % 40 === 0); }
   if (!queueOut.length) budget = Math.min(budget, 1);
   if (scrollAnim > .3) { scrollAnim *= Math.pow(.0005, dt); dirty = true; } else scrollAnim = 0;
+  updatePan(dt);
   if (Math.abs(viewTarget - viewOff) > .3) { viewOff += (viewTarget - viewOff) * Math.min(1, dt * 14); dirty = true; }
   else if (viewOff !== viewTarget) { viewOff = viewTarget; dirty = true; }
   if (Math.abs(MARGIN + Math.min(col, COLS - 1) * CW - headX) > .5) dirty = true;
@@ -463,7 +505,26 @@ const hideKeyboard = () => kbd.blur();
 const bKbd = document.getElementById("bKbd");
 kbd.addEventListener("focus", () => bKbd.classList.add("on"));
 kbd.addEventListener("blur", () => bKbd.classList.remove("on"));
-document.getElementById("stage").addEventListener("click", () => { closeMenu(); showKeyboard(); });
+let touchDrag = null, dragged = false;
+const stageEl = document.getElementById("stage");
+stageEl.addEventListener("touchstart", (e) => {
+  const t = e.touches[0];
+  touchDrag = { x: t.clientX, y: t.clientY, pan: panTarget, view: viewTarget, axis: null };
+  dragged = false;
+}, { passive: true });
+stageEl.addEventListener("touchmove", (e) => {
+  if (!touchDrag || e.touches.length !== 1) return;
+  const t = e.touches[0], dx = t.clientX - touchDrag.x, dy = t.clientY - touchDrag.y;
+  if (!touchDrag.axis && Math.hypot(dx, dy) > 8) touchDrag.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+  if (!touchDrag.axis) return;
+  e.preventDefault(); dragged = true;
+  if (touchDrag.axis === "x" && PAN) {
+    panManual = true;
+    panTarget = Math.max(0, Math.min(touchDrag.pan - dx / SCALE, W - VIS_W)); panX = panTarget; applyPan();
+  } else if (touchDrag.axis === "y") scrollTo(touchDrag.view + dy / SCALE);   // pull the paper down = older text
+}, { passive: false });
+stageEl.addEventListener("touchend", () => { touchDrag = null; }, { passive: true });
+stageEl.addEventListener("click", () => { if (dragged) { dragged = false; return; } closeMenu(); showKeyboard(); });
 bKbd.onclick = () => (kbdOpen() ? hideKeyboard() : showKeyboard());
 document.getElementById("bEsc").onclick = () => send("\x1b");
 // Tapping a bar button must not take the focus from the hidden field (that would close the keyboard).
