@@ -127,6 +127,7 @@ keyboard), typing, the manual, the menu and the saved disk. It needs Node 22+ an
 web/build.sh && node tests/regress.mjs          # the static build
 node tests/regress.mjs --server                 # plus teletype.py (in a temporary disk directory)
 node tests/regress.mjs --only phone --keep      # a subset, with screenshots in tests/out/
+node tests/regress.mjs --url https://bumprdlik.github.io/pdp7-teletype/   # the deployed site
 ```
 
 The tests only use the DOM and `window.__teletype` (what was printed, plus a little layout state),

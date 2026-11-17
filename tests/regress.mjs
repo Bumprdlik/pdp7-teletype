@@ -7,6 +7,7 @@
 //   node tests/regress.mjs --only phone                # tests whose name contains "phone"
 //   BROWSER=/usr/bin/chromium node tests/regress.mjs   # pick the browser (default: brave/chromium/chrome)
 //   node tests/regress.mjs --keep                      # keep screenshots in tests/out/
+//   node tests/regress.mjs --url https://bumprdlik.github.io/pdp7-teletype/   # test a deployed site
 //
 // The tests only use the DOM and the read-only window.__teletype view, so they keep working when
 // the page's code is reorganized.
@@ -22,6 +23,7 @@ const DIST = join(ROOT, "web", "dist");
 const args = process.argv.slice(2);
 const opt = (name) => args.includes(name);
 const ONLY = args.includes("--only") ? args[args.indexOf("--only") + 1] : null;
+const URL_ARG = args.includes("--url") ? args[args.indexOf("--url") + 1] : null;
 const OUT = join(ROOT, "tests", "out");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -476,17 +478,18 @@ test("server mode (teletype.py): boot, login, ls", async ({ browser }) => {
 
 // ---------- runner ----------
 const selected = tests.filter((t) => (!t.server || opt("--server")) && (!ONLY || t.name.includes(ONLY)));
-if (!existsSync(join(DIST, "index.html"))) { console.error("web/dist is missing - run web/build.sh first"); process.exit(2); }
-const srv = await serveDist();
-const origin = `http://127.0.0.1:${srv.address().port}`;
+if (!URL_ARG && !existsSync(join(DIST, "index.html"))) { console.error("web/dist is missing - run web/build.sh first"); process.exit(2); }
+const srv = URL_ARG ? null : await serveDist();
+const site = URL_ARG ? URL_ARG.replace(/\/?$/, "/") : `http://127.0.0.1:${srv.address().port}/`;
+const origin = new URL(site).origin;
 const browser = await launchBrowser();
 let failed = 0;
-console.log(`${selected.length} tests, ${origin}\n`);
+console.log(`${selected.length} tests, ${site}\n`);
 for (const t of selected) {
   const t0 = Date.now();
   let page = null;
   try {
-    if (!t.server) { page = await Page.open(browser, origin + "/"); await page.clearStorage(origin); }
+    if (!t.server) { page = await Page.open(browser, site); await page.clearStorage(origin); }
     await t.fn({ page, browser, origin });
     if (page) assert(page.errors.length === 0, "no page errors: " + page.errors.join("; "));
     console.log(`  \x1b[32mok\x1b[0m    ${t.name}  (${((Date.now() - t0) / 1000).toFixed(1)} s)`);
@@ -499,6 +502,6 @@ for (const t of selected) {
   }
 }
 browser.close();
-srv.close();
+if (srv) srv.close();
 console.log(`\n${selected.length - failed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
