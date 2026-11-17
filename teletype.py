@@ -20,8 +20,13 @@ import threading
 import time
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import unquote, urlsplit
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+APP_DIR = os.path.join(HERE, "app")  # the page: index.html, style.css, js/
+APP_TYPES = {".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8",
+             ".js": "text/javascript; charset=utf-8", ".json": "application/json",
+             ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon"}
 
 DEPS = os.path.join(HERE, "deps")  # filled by setup.sh
 UNIX_BUILD = os.path.expanduser(os.environ.get("PDP7_UNIX_BUILD", os.path.join(DEPS, "pdp7-unix", "build")))
@@ -241,16 +246,28 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
+    def send_app_file(self, path):
+        """A file of the page from app/ (never anything outside it)."""
+        rel = unquote(path).lstrip("/") or "index.html"
+        if "\0" in rel:
+            return self.send_error(404)
+        root = os.path.realpath(APP_DIR)
+        full = os.path.realpath(os.path.join(root, rel))
+        ctype = APP_TYPES.get(os.path.splitext(full)[1])
+        if not full.startswith(root + os.sep) or not ctype or not os.path.isfile(full):
+            return self.send_error(404)
+        with open(full, "rb") as f:
+            body = f.read()
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self):
-        if self.path in ("/", "/index.html"):
-            with open(os.path.join(HERE, "index.html"), "rb") as f:
-                body = f.read()
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-        elif self.path.startswith("/sounds/"):
+        self.path = urlsplit(self.path).path  # ignore ?query
+        if self.path.startswith("/sounds/"):
             name = os.path.basename(self.path)
             p = os.path.join(HERE, "sounds", name)
             if not name.endswith(".wav") or not os.path.isfile(p):
@@ -307,7 +324,7 @@ class Handler(BaseHTTPRequestHandler):
             finally:
                 hub.unsubscribe(q)
         else:
-            self.send_error(404)
+            self.send_app_file(self.path)
 
     def do_POST(self):
         if self.path == "/reset":

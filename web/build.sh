@@ -64,11 +64,14 @@ fi
 # --- assemble the site ---------------------------------------------------------
 say "assembling $DIST"
 rm -rf "$DIST"; mkdir -p "$DIST"
+cp -r "$ROOT/app/." "$DIST/"                    # the page: index.html, style.css, js/
 cp "$BUILD/simh/pdp7.js" "$BUILD/simh/pdp7.wasm" "$WEB/pdp7-worker.js" "$DIST/"
 BUILD_ID="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"   # shown in the ☰ menu
-sed -e 's/^const STATIC_BUILD = false;/const STATIC_BUILD = true;/' \
-    -e "s/^const BUILD = \"dev\";/const BUILD = \"$BUILD_ID\";/" "$ROOT/index.html" > "$DIST/index.html"
-grep -q '^const STATIC_BUILD = true;' "$DIST/index.html" || fail "could not switch index.html to the static build"
+cat > "$DIST/js/config.js" <<EOF_CONFIG
+// written by web/build.sh: the PDP-7 runs in this browser (see app/js/config.js)
+export const STATIC_BUILD = true;
+export const BUILD = "$BUILD_ID";
+EOF_CONFIG
 gzip -9 -n -c "$PDP7_UNIX/build/image.fs" > "$DIST/image.fs.gz"
 cp "$PDP7_UNIX/build/boot.rim" "$DIST/"
 echo '[]' > "$DIST/sounds.json"                 # recorded samples are not published

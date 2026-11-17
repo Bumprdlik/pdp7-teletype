@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
+<title>Teletype 33</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="preload">
+<div id="bar">
+  <button id="bKbd" class="touch" title="show / hide the keyboard">Keyboard</button>
+  <button id="bEsc" class="touch" title="ALT MODE: interrupts a running program">Esc</button>
+  <button id="bMan" title="F2">Manual</button>
+  <button id="bMenu" class="compact" title="more" aria-haspopup="true" aria-expanded="false">☰</button>
+  <div id="more">
+    <button id="bTurbo" title="F5">Turbo</button>
+    <button id="bLid" title="F7">Lid</button>
+    <button id="bTear">Tear off paper</button>
+    <button id="bReset" title="power-cycles the PDP-7 (the disk is saved)">Restart computer</button>
+    <button id="bWipe" title="throws away your files and starts with the original 1970 disk" hidden>Factory disk</button>
+    <div class="size"><button id="bSmaller" title="smaller type">A−</button><button id="bLarger" title="larger type">A+</button></div>
+    <div id="build" class="build"></div>
+  </div>
+  <span class="hint">F8 = next carriage sound (<b id="crName">cr_1.wav</b>)</span>
+  <span class="hint">login: ken / ken · Backspace = # · stuck? → Restart computer</span>
+</div>
+<div id="stage"><div id="tilt"><canvas id="c"></canvas></div></div>
+<aside id="man">
+  <header><input id="manQ" type="search" placeholder="Search the manual…" autocomplete="off"><button id="manClose" title="Esc">✕</button></header>
+  <div id="manList"></div>
+  <div id="manPage"></div>
+</aside>
+<div id="back">Scrolled back · End or any key returns</div>
+<textarea id="kbd" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"
+          aria-label="Teletype keyboard"></textarea>
+<div id="power"><button id="bPower">POWER ON TELETYPE</button></div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

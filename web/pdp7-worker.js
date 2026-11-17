@@ -1,4 +1,4 @@
-// Web Worker that runs the PDP-7 (SIMH compiled to WebAssembly) for index.html.
+// Web Worker that runs the PDP-7 (SIMH compiled to WebAssembly) for the page (app/js/transport.js).
 //
 // page -> worker:  {keys: "..."}   typed characters
 //                  {save: id}      save the disk now, answer {saved: id}

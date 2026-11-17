@@ -13,11 +13,26 @@ browser, on desktop or phone, with nothing to install. Log in as `ken` / `ken`.
 ## How it works
 
 ```
-browser (index.html)  <->  teletype.py (HTTP + SSE, 127.0.0.1:8033)  <->  SIMH pdp7 (telnet console)
+browser (app/)  <->  teletype.py (HTTP + SSE, 127.0.0.1:8033)  <->  SIMH pdp7 (telnet console)
 ```
 
 `teletype.py` starts the SIMH simulator with its console on telnet, connects to it and streams
 the output to the page. It uses only the Python standard library and listens on `127.0.0.1` only.
+
+The page is plain HTML, CSS and JavaScript modules, with no build step and no dependencies:
+
+| `app/` | |
+|---|---|
+| `index.html`, `style.css` | the page |
+| `js/main.js` | wires the modules together |
+| `js/paper.js`, `js/render.js` | the printed paper and drawing it on the canvas |
+| `js/printer.js` | the print loop: 10 characters per second, Turbo |
+| `js/layout.js` | fitting the paper to the window, panning it on phones |
+| `js/keyboard.js`, `js/gestures.js` | typing (also with phone keyboards), wheel and touch |
+| `js/sound.js` | synthesized machine sounds, or your own samples |
+| `js/transport.js` | the connection to the PDP-7: `teletype.py`, or a Web Worker in the browser-only build |
+| `js/manual.js`, `js/ui.js` | the manual panel, the buttons and the menu |
+| `js/config.js` | server or browser-only build (`web/build.sh` writes its own copy) |
 
 ## Quick start
 

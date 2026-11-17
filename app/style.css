@@ -1,0 +1,82 @@
+html, body { margin: 0; height: 100%; overflow: hidden; background: #141311; }
+/* no animations until main.js has laid out the page (modules run after the first paint) */
+body.preload, body.preload * { transition: none !important; }
+body { font: 13px/1.4 system-ui, sans-serif; color: #b9b4a8; }
+#bar { position: fixed; top: 0; left: 0; right: 0; z-index: 5; display: flex; gap: 8px; align-items: center;
+       padding: 8px 14px; background: linear-gradient(#000c, #0000); }
+#bar button { font: inherit; color: #ddd8cc; background: #2a2824; border: 1px solid #4a463e; border-radius: 4px;
+              padding: 4px 10px; cursor: pointer; }
+#bar button.on { background: #6b4f1d; border-color: #a77c2c; }
+#bar .hint { margin-left: auto; opacity: .7; }
+:root { --manw: clamp(360px, 40vw, 640px); }
+#stage { position: absolute; inset: 0; overflow: hidden; perspective: 1300px; display: flex; justify-content: center; align-items: flex-end;
+         transition: padding-left .25s ease; }
+body.manopen #stage { padding-left: var(--manw); }
+#tilt { transform-origin: 50% 100%; transform: rotateX(13deg); }
+canvas { display: block; }
+#back { position: fixed; bottom: 18px; right: 18px; z-index: 3; display: none; padding: 6px 12px; border-radius: 4px;
+        background: #2a2824e6; border: 1px solid #a77c2c; color: #ddd8cc; cursor: pointer; }
+#man { position: fixed; top: 44px; left: 0; bottom: 0; width: var(--manw); z-index: 5; display: flex; flex-direction: column;
+       background: #1d1b18f2; border-right: 1px solid #4a463e; transform: translateX(-100%); transition: transform .25s ease;
+       box-shadow: 12px 0 30px #0008; }
+#man.open { transform: none; }
+#manList, #manPage { scrollbar-width: none; }
+#manList::-webkit-scrollbar, #manPage::-webkit-scrollbar { display: none; }
+#man header { display: flex; gap: 6px; padding: 10px; border-bottom: 1px solid #3a372f; }
+#man input { flex: 1; font: 14px system-ui, sans-serif; color: #eee8da; background: #2a2824; border: 1px solid #4a463e;
+             border-radius: 4px; padding: 6px 9px; outline: none; }
+#man input:focus { border-color: #a77c2c; }
+#man header button, #manList button { font: inherit; color: #ddd8cc; background: #2a2824; border: 1px solid #4a463e;
+             border-radius: 4px; padding: 4px 9px; cursor: pointer; }
+#manList { display: flex; flex-wrap: wrap; gap: 5px; padding: 8px 10px; border-bottom: 1px solid #3a372f; max-height: 30%; overflow: auto; }
+#manList button.sel { background: #6b4f1d; border-color: #a77c2c; }
+#manList button small { opacity: .65; margin-left: 4px; }
+#manList .none { opacity: .6; padding: 4px; }
+#manPage { flex: 1; overflow: auto; margin: 10px; padding: 18px 20px; background: #efe9dc; color: #1d1b1f; border-radius: 2px;
+           font: 14px/1.45 "Courier New", "Nimbus Mono PS", "Liberation Mono", monospace; }
+#manPage .hdr { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 1.2em; }
+#manPage .pre { white-space: pre-wrap; }
+#manPage .tips { white-space: pre-wrap; padding-left: 13ch; text-indent: -13ch; }
+#manPage .para { white-space: normal; }
+#manPage .sp { height: .9em; }
+#manPage mark { background: #f2c14e; color: inherit; }
+#power { position: fixed; inset: 0; z-index: 4; display: flex; align-items: center; justify-content: center;
+         background: #000a; }
+#power button { font: 600 20px system-ui; letter-spacing: .1em; padding: 18px 34px; color: #f0e6cc;
+                background: #3b2a10; border: 2px solid #a77c2c; border-radius: 8px; cursor: pointer; }
+/* hidden text field: phones only show their on-screen keyboard for a focused text field */
+#kbd { position: fixed; left: 0; bottom: 0; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0;
+       resize: none; font-size: 16px; /* 16px: iOS does not zoom in on focus */ }
+#more { display: contents; }                 /* desktop: the menu items sit in the bar */
+#more .size, #more .build { display: none; }
+#bar .touch, #bar .compact { display: none; }
+@media (pointer: coarse) { #bar .touch { display: inline-block; } }
+/* phones and small windows: Keyboard, Esc, Manual stay in the bar, the rest goes into the ☰ menu */
+@media (max-width: 900px), (pointer: coarse) {
+  #bar { gap: 6px; padding: 6px 8px; }
+  #bar .hint { display: none; }
+  #bar .compact { display: inline-block; margin-left: auto; }
+  #more { display: none; position: absolute; top: 100%; right: 8px; flex-direction: column; align-items: stretch;
+          gap: 6px; padding: 8px; background: #1d1b18f2; border: 1px solid #4a463e; border-radius: 6px;
+          box-shadow: 0 10px 30px #000a; }
+  #more.open { display: flex; }
+  #more button { text-align: left; padding: 8px 14px; }
+  #more .build { display: block; font-size: 11px; opacity: .55; text-align: center; }
+  :root { --manw: 100vw; }
+  body.manopen #stage { padding-left: 0; }
+  #more .size { display: flex; gap: 6px; }
+  #more .size button { flex: 1; text-align: center; }
+}
+/* phones in landscape (body.side, set from the screen orientation in resize(): the CSS orientation
+   follows the window, which turns "landscape" in portrait once the keyboard takes half the height):
+   the bar becomes a column on the left, so the paper keeps the full height */
+body.side { --sidew: 104px; }
+body.side #bar { top: 0; bottom: 0; right: auto; width: var(--sidew); box-sizing: border-box; flex-direction: column;
+                 align-items: stretch; padding: 8px 6px; background: linear-gradient(90deg, #000d, #0000); }
+body.side #bar .compact { margin-left: 0; }
+body.side #more { top: 8px; right: auto; left: calc(100% + 4px); max-height: calc(100% - 16px); overflow-y: auto; }
+body.side #stage { left: var(--sidew); }
+body.side #man { top: 0; left: var(--sidew); width: calc(100vw - var(--sidew));
+                 transform: translateX(calc(-100% - var(--sidew))); }   /* closed: fully off screen, not under the bar */
+body.side #man.open { transform: none; }
+body.side #more .size { display: none; }     /* the type size only matters in portrait */

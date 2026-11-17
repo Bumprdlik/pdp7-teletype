@@ -281,6 +281,32 @@ test("desktop: manual opens, searches, closes", async ({ page }) => {
   await page.until("!window.__teletype.state.manual", 3000, "manual closed");
 });
 
+test("desktop: wheel scrollback, End, Lid, Tear off paper", async ({ page }) => {
+  await page.desktop();
+  await page.reload();
+  await powerOn(page);
+  await login(page);
+  await run(page, "type", "ls", /system/);
+  const backShown = () => page.eval(`getComputedStyle(document.getElementById("back")).display !== "none"`);
+  assert(!(await backShown()), "not scrolled back at first");
+  await page.cmd("Input.dispatchMouseEvent", { type: "mouseWheel", x: 700, y: 500, deltaX: 0, deltaY: -400 });
+  await sleep(200);
+  assert(await backShown(), "wheel up scrolls back");
+  await page.key("End", 35);
+  await sleep(200);
+  assert(!(await backShown()), "End returns to the print line");
+  await page.key("F7", 118);
+  assert((await page.state()).lid && await page.eval(`document.getElementById("bLid").classList.contains("on")`), "F7 closes the lid");
+  await page.click("#bLid");
+  assert(!(await page.state()).lid, "the Lid button opens it again");
+  assert((await page.state()).line > 10, "many lines printed");
+  const col = (await page.state()).col;
+  await page.click("#bTear");
+  const s = await page.state();
+  assert(s.line === 0 && s.col === col, `tearing off starts a clean sheet, the head stays (line ${s.line}, col ${s.col}/${col})`);
+  await run(page, "type", "ls", /system/);
+});
+
 test("disk: saved across reload, kept by restart, erased by factory disk", async ({ page, origin }) => {
   await page.desktop();
   await page.reload();

@@ -1,0 +1,66 @@
+// Teletype Model 33 for PDP-7 Unix v0: wires the modules together.
+//
+//   paper.js     printed lines and the print position      render.js    drawing it on the canvas
+//   layout.js    fitting the paper to the window, panning  printer.js   10 chars/s print loop
+//   sound.js     machine sounds                            transport.js the PDP-7 (server or worker)
+//   keyboard.js  typing, also on phones                    gestures.js  wheel and touch
+//   manual.js    the Unix v0 manual panel                  ui.js        buttons and menu
+import { STATIC_BUILD } from "./config.js";
+import { paper, newPaper, scrollTo } from "./paper.js";
+import { layout, resize } from "./layout.js";
+import { enqueue, replaceWithHistory, startPrinting, queued, printedText, turboOn } from "./printer.js";
+import { lidClosed, nextCrSample } from "./sound.js";
+import { connect } from "./transport.js";
+import { initKeyboard, showKeyboard, hideKeyboard, keyboardOpen } from "./keyboard.js";
+import { initGestures } from "./gestures.js";
+import { initManual, toggleManual, manualOpen } from "./manual.js";
+import { initUI, closeMenu, menuOpen, toggleTurbo, toggleLid } from "./ui.js";
+import { $ } from "./util.js";
+
+newPaper();
+
+const conn = connect({ onOutput: enqueue, onHistory: replaceWithHistory });
+
+// page shortcuts; everything else typed goes to the PDP-7
+function shortcut(e) {
+  if (e.key === "F2") { e.preventDefault(); toggleManual(); return true; }
+  if (e.target.closest && e.target.closest("#man")) { if (e.key === "Escape") toggleManual(false); return true; }
+  if (e.key === "End" || e.key === "PageDown" && e.shiftKey) { e.preventDefault(); scrollTo(0); return true; }
+  if (e.key === "PageUp" && e.shiftKey) { e.preventDefault(); scrollTo(paper.viewTarget + layout.h * .6); return true; }
+  if (e.key === "F5") { e.preventDefault(); toggleTurbo(); return true; }
+  if (e.key === "F7") { e.preventDefault(); toggleLid(); return true; }
+  if (e.key === "F8") {                      // try the next carriage-return sample
+    const name = nextCrSample();
+    if (name) { e.preventDefault(); $("crName").textContent = name; return true; }
+  }
+  return false;
+}
+initKeyboard({ send: conn.send, onTyped: () => scrollTo(0), shortcut });
+
+initGestures({ onTap: () => { closeMenu(); showKeyboard(); } });
+
+let keyboardBeforeManual = false;
+initManual({
+  onLayout: resize,
+  onOpen() { closeMenu(); keyboardBeforeManual = keyboardOpen(); hideKeyboard(); },   // the phone keyboard would cover it
+  onClose() { if (keyboardBeforeManual) showKeyboard(); },
+});
+
+initUI(conn);
+
+// read-only view for tests (tests/regress.mjs) and for debugging in the console
+window.__teletype = {
+  get printed() { return printedText(); },
+  get state() {
+    return { scale: layout.scale, pan: layout.pan, panX: layout.panX, short: layout.short,
+             side: document.body.classList.contains("side"), line: paper.cur, col: paper.col, turbo: turboOn(), lid: lidClosed(),
+             keyboard: keyboardOpen(), manual: manualOpen(), menu: menuOpen(), queued: queued(), staticBuild: STATIC_BUILD };
+  },
+};
+
+window.addEventListener("resize", resize);
+if (window.visualViewport) window.visualViewport.addEventListener("resize", resize);
+resize();
+void document.body.offsetHeight;             // apply the first layout without transitions...
+document.body.classList.remove("preload");   // ...then allow them (see style.css)
+startPrinting();
