@@ -91,4 +91,4 @@ they are used instead. Recordings are not part of this repository.
 ## License
 
 This project's code: [GPL-3.0-or-later](LICENSE).
-PDP-7 Unix and SIMH are not included and have their own licenses (Unix source code © Micro Focus).
+PDP-7 Unix and SIMH are not included and have their own licenses: pdp7-unix is GPLv3, but the original 1970 Unix code it contains is © Micro Focus, according to its README. SIMH uses an MIT-style license.
