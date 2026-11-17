@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
 <title>Teletype 33</title>
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: #141311; }
@@ -48,6 +49,17 @@
            background: #000a; }
   #power button { font: 600 20px system-ui; letter-spacing: .1em; padding: 18px 34px; color: #f0e6cc;
                   background: #3b2a10; border: 2px solid #a77c2c; border-radius: 8px; cursor: pointer; }
+  /* hidden text field: phones only show their on-screen keyboard for a focused text field */
+  #kbd { position: fixed; left: 0; bottom: 0; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0;
+         resize: none; font-size: 16px; /* 16px: iOS does not zoom in on focus */ }
+  #bar .touch { display: none; }
+  @media (pointer: coarse) { #bar .touch { display: inline-block; } }
+  @media (max-width: 760px) {
+    #bar { flex-wrap: wrap; gap: 6px; padding: 6px 8px; }
+    #bar .hint { display: none; }
+    :root { --manw: 100vw; }
+    body.manopen #stage { padding-left: 0; }
+  }
 </style>
 </head>
 <body>
@@ -57,6 +69,8 @@
   <button id="bTear">Tear off paper</button>
   <button id="bMan" title="F2">Manual</button>
   <button id="bReset" title="power-cycles the PDP-7 (the disk is saved)">Restart computer</button>
+  <button id="bKbd" class="touch" title="show the keyboard">Keyboard</button>
+  <button id="bEsc" class="touch" title="ALT MODE: interrupts a running program">Esc</button>
   <button id="bWipe" title="throws away your files and starts with the original 1970 disk" hidden>Factory disk</button>
   <span class="hint">F8 = next carriage sound (<b id="crName">cr_1.wav</b>)</span>
   <span class="hint">login: ken / ken · Backspace = # · stuck? → Restart computer</span>
@@ -68,6 +82,8 @@
   <div id="manPage"></div>
 </aside>
 <div id="back">Scrolled back · End or any key returns</div>
+<textarea id="kbd" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"
+          aria-label="Teletype keyboard"></textarea>
 <div id="power"><button id="bPower">POWER ON TELETYPE</button></div>
 
 <script>
@@ -85,7 +101,8 @@ function resize() {
   DPR = window.devicePixelRatio || 1;
   const manW = document.body.classList.contains("manopen") ? document.getElementById("man").offsetWidth : 0;
   const scale = Math.min(1, (window.innerWidth - manW - 24) / W);
-  H = Math.round((window.innerHeight - 10) / scale);
+  const viewH = window.visualViewport ? window.visualViewport.height : window.innerHeight;  // minus the phone keyboard
+  H = Math.round((viewH - 10) / scale);
   PRINT_Y = H - 120;
   cv.width = W * DPR; cv.height = H * DPR;
   cv.style.width = W * scale + "px"; cv.style.height = H * scale + "px";
@@ -403,8 +420,35 @@ window.addEventListener("keydown", (e) => {
   else if (e.key === "Tab") s = "\t";
   else if (e.key === "Escape") s = "\x1b";
   else if (e.key.length === 1) s = e.key.toLowerCase();
-  if (s !== null) { e.preventDefault(); scrollTo(0); send(s); }
+  if (s !== null) { e.preventDefault(); scrollTo(0); send(s); keySentAt = performance.now(); }
 });
+
+// ---------- on-screen keyboards (phones) ----------
+// Phone keyboards usually send no usable keydown (key "Unidentified"), only text changes of the
+// focused field. So the hidden field's text is compared with its previous text: added characters
+// are typed, removed ones become # (v0's erase). Outside of IME composition the field is reset to
+// a short placeholder, so Backspace always has something to delete.
+const kbd = document.getElementById("kbd"), KBD_FILL = "  ";
+let kbdPrev = KBD_FILL, keySentAt = -1e9;
+const kbdReset = () => { kbd.value = kbdPrev = KBD_FILL; kbd.setSelectionRange(KBD_FILL.length, KBD_FILL.length); };
+kbd.addEventListener("input", (e) => {
+  const now = kbd.value;
+  if (performance.now() - keySentAt > 80) {        // not already sent by the keydown handler
+    let p = 0;
+    while (p < now.length && p < kbdPrev.length && now[p] === kbdPrev[p]) p++;
+    let s = "#".repeat(kbdPrev.length - p);
+    for (const ch of now.slice(p)) s += ch === "\n" ? "\r" : ch.toLowerCase();
+    if (s) { scrollTo(0); send(s); }
+  }
+  kbdPrev = now;
+  if (!e.isComposing) kbdReset();
+});
+kbd.addEventListener("compositionend", kbdReset);
+kbd.addEventListener("focus", kbdReset);
+const showKeyboard = () => { if (!document.body.classList.contains("manopen")) kbd.focus({ preventScroll: true }); };
+document.getElementById("stage").addEventListener("click", showKeyboard);
+document.getElementById("bKbd").onclick = showKeyboard;
+document.getElementById("bEsc").onclick = () => { send("\x1b"); showKeyboard(); };
 
 function toggleTurbo() { turbo = !turbo; document.getElementById("bTurbo").classList.toggle("on", turbo); }
 function toggleLid() { lid = !lid; document.getElementById("bLid").classList.toggle("on", lid); if (S.master) S.master.gain.value = lid ? .2 : .8; }
@@ -424,7 +468,7 @@ function confirmButton(id, question, action) {           // safety: the first cl
 }
 confirmButton("bReset", "Really restart?", () => restartComputer());
 if (wipeDisk) { document.getElementById("bWipe").hidden = false; confirmButton("bWipe", "Erase your files?", wipeDisk); }
-document.getElementById("bPower").onclick = () => { initAudio(); document.getElementById("power").remove(); };
+document.getElementById("bPower").onclick = () => { initAudio(); document.getElementById("power").remove(); showKeyboard(); };
 
 
 // ---------- Unix v0 manual side panel ----------
@@ -535,6 +579,7 @@ document.getElementById("manQ").addEventListener("input", () => renderManList())
 
 newPaper(); col = 0;
 window.addEventListener("resize", resize); resize();
+if (window.visualViewport) window.visualViewport.addEventListener("resize", resize);
 requestAnimationFrame(frame);
 </script>
 </body>
