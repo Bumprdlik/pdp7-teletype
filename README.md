@@ -76,6 +76,29 @@ stays untouched. The disk is saved on exit (`Ctrl+C`).
 - `ed` is the only editor; `b` (the B language) and `as` can build `hello.b` in `dmr`'s directory
 - do not run `n.out` - it is a symbol table, not a program, and it hangs the whole machine
 
+## Browser-only version (no server)
+
+`web/build.sh` compiles the SIMH PDP-7 simulator to WebAssembly with
+[Emscripten](https://emscripten.org) and puts it, together with the Unix v0 disk, into a
+static site in `web/dist`. Anyone can then use it from any static web host such as GitHub Pages:
+
+```sh
+./setup.sh                                   # SIMH and pdp7-unix sources + disk image
+web/build.sh                                 # uses a local emcc, or the emscripten/emsdk Docker image
+python3 -m http.server -d web/dist 8034      # try it at http://127.0.0.1:8034
+```
+
+- The simulator runs in a Web Worker in each visitor's browser. Every visitor has their own
+  PDP-7, so there is nothing to secure on the server.
+- The disk is saved to the browser's IndexedDB every few seconds. **Factory disk** goes back to
+  the original disk.
+- The CPU is throttled to about 1 million instructions per second (roughly twice the real PDP-7),
+  so an idle machine barely uses any CPU.
+- The browser changes to SIMH are small: a console and sleep backend for Emscripten
+  (`web/simh-emscripten.patch`) plus `web/web_glue.c`.
+- `.github/workflows/pages.yml` builds and deploys it on every push to `main` once Pages is set to
+  "GitHub Actions" in the repository settings.
+
 ## Manual
 
 The **Manual** panel shows the man pages shipped with pdp7-unix (`man/` next to its `build/`

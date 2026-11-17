@@ -1,0 +1,41 @@
+This site bundles third-party software. Sources:
+
+pdp7-teletype (the teletype page, the worker and the SIMH browser glue)
+  GPL-3.0-or-later, see LICENSE.txt
+  https://github.com/Bumprdlik/pdp7-teletype
+
+Open SIMH - the PDP-7 simulator, compiled to WebAssembly (pdp7.js, pdp7.wasm)
+  https://github.com/open-simh/simh
+  Small changes for the browser: web/simh-emscripten.patch in the pdp7-teletype repository.
+
+  Copyright (c) 1993-2022, Robert M Supnik
+
+  Permission is hereby granted, free of charge, to any person obtaining a
+  copy of this software and associated documentation files (the "Software"),
+  to deal in the Software without restriction, including without limitation
+  the rights to use, copy, modify, merge, publish, distribute, sublicense,
+  and/or sell copies of the Software, and to permit persons to whom the
+  Software is furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in
+  all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+  ROBERT M SUPNIK BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+  IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+  CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+  Except as contained in this notice, the name of Robert M Supnik shall not be
+  used in advertising or otherwise to promote the sale, use or other dealings
+  in this Software without prior written authorization from Robert M Supnik.
+
+  Other SIMH source files carry the same license with their own authors'
+  names; see the source files.
+
+PDP-7 Unix v0 - the disk image (image.fs.gz, boot.rim) and the manual (man.json)
+  https://github.com/DoctorWkt/pdp7-unix
+  The pdp7-unix project is GPLv3. According to its README, the code in the
+  original scans (the 1970 Unix source) is (c) Micro Focus, who own the rights
+  to the Unix source code. Shown here for historical and educational purposes.

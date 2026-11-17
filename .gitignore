@@ -2,3 +2,5 @@ disk/
 sounds/*.wav
 __pycache__/
 deps/
+web/build/
+web/dist/

@@ -57,6 +57,7 @@
   <button id="bTear">Tear off paper</button>
   <button id="bMan" title="F2">Manual</button>
   <button id="bReset" title="power-cycles the PDP-7 (the disk is saved)">Restart computer</button>
+  <button id="bWipe" title="throws away your files and starts with the original 1970 disk" hidden>Factory disk</button>
   <span class="hint">F8 = next carriage sound (<b id="crName">cr_1.wav</b>)</span>
   <span class="hint">login: ken / ken · Backspace = # · stuck? → Restart computer</span>
 </div>
@@ -224,10 +225,10 @@ function initAudio() {
 const SMP = { strike: [], cr: [], motor: null };
 async function loadSamples() {
   let names = [];
-  try { names = await (await fetch("/sounds.json")).json(); } catch (e) {}
+  try { names = await (await fetch("sounds.json")).json(); } catch (e) {}
   await Promise.all(names.map(async (n) => {
     try {
-      const buf = await S.ctx.decodeAudioData(await (await fetch("/sounds/" + n)).arrayBuffer());
+      const buf = await S.ctx.decodeAudioData(await (await fetch("sounds/" + n)).arrayBuffer());
       if (n.startsWith("strike")) SMP.strike.push(buf);
       else if (n.startsWith("cr")) SMP.cr.push({ n, buf });
       else if (n.startsWith("motor")) SMP.motor = buf;
@@ -324,17 +325,52 @@ function frame(t) {
   requestAnimationFrame(frame);
 }
 
-// ---------- connection to the server ----------
-function connect() {
-  const es = new EventSource("/stream");
+// ---------- connection to the PDP-7 ----------
+// STATIC_BUILD is switched on by web/build.sh: the PDP-7 then runs in this browser
+// (SIMH compiled to WebAssembly, in a Web Worker) instead of behind teletype.py.
+const STATIC_BUILD = false;
+let send, restartComputer, wipeDisk = null;
+
+if (!STATIC_BUILD) {
+  const es = new EventSource("stream");
   es.onmessage = (e) => {
     const m = JSON.parse(e.data);
     if (m.h !== undefined) { newPaper(); col = 0; queueOut.length = 0; for (const ch of m.h) out(ch, false); scrollAnim = 0; }
     if (m.d) for (const ch of m.d) queueOut.push(ch);
   };
+  let sending = Promise.resolve();
+  send = (str) => { sending = sending.then(() => fetch("key", { method: "POST", body: str }).catch(() => {})); };
+  restartComputer = () => fetch("reset", { method: "POST" });
+} else {
+  let worker = null, reqId = 0;
+  const printNote = (s) => { for (const ch of s) queueOut.push(ch); };
+  const ask = (msg, answer) => new Promise((ok) => {      // request/answer, at most 3 s
+    const id = ++reqId, t = setTimeout(ok, 3000);
+    const h = (e) => { if (e.data[answer] === id) { clearTimeout(t); worker.removeEventListener("message", h); ok(); } };
+    worker.addEventListener("message", h);
+    worker.postMessage({ [msg]: id });
+  });
+  const start = () => {
+    worker = new Worker("pdp7-worker.js");
+    worker.onmessage = (e) => {
+      const m = e.data;
+      if (m.d) for (const ch of m.d) queueOut.push(ch);
+      if (m.stopped) printNote("\r\n\r\n[SIMULATOR STOPPED]\r\n");
+      if (m.status && m.status.startsWith("error")) printNote("\r\n[" + m.status.toUpperCase() + "]\r\n");
+    };
+  };
+  const powerCycle = async (how, note) => {
+    await ask(how, how === "save" ? "saved" : "wiped");
+    worker.terminate();
+    printNote(note);
+    start();
+  };
+  send = (str) => worker.postMessage({ keys: str });
+  restartComputer = () => powerCycle("save", "\r\n\r\n[COMPUTER RESTART]\r\n");
+  wipeDisk = () => powerCycle("wipe", "\r\n\r\n[NEW DISK - COMPUTER RESTART]\r\n");
+  addEventListener("pagehide", () => worker.postMessage({ save: 0 }));
+  start();
 }
-let sending = Promise.resolve();
-function send(str) { sending = sending.then(() => fetch("/key", { method: "POST", body: str }).catch(() => {})); }
 
 // ---------- scrollback with the mouse wheel ----------
 function scrollTo(px) {
@@ -376,13 +412,18 @@ document.getElementById("bTurbo").onclick = (e) => { toggleTurbo(); e.target.blu
 document.getElementById("bLid").onclick = (e) => { toggleLid(); e.target.blur(); };
 document.getElementById("back").onclick = () => scrollTo(0);
 document.getElementById("bTear").onclick = (e) => { newPaper(); e.target.blur(); };
-document.getElementById("bReset").onclick = (e) => {   // safety: the first click only asks
-  const b = e.target; b.blur();
-  if (!b.dataset.armed) { b.dataset.armed = 1; b.textContent = "Really restart?"; b.classList.add("on");
-    setTimeout(() => { delete b.dataset.armed; b.textContent = "Restart computer"; b.classList.remove("on"); }, 3000); return; }
-  delete b.dataset.armed; b.textContent = "Restart computer"; b.classList.remove("on");
-  fetch("/reset", { method: "POST" });
-};
+function confirmButton(id, question, action) {           // safety: the first click only asks
+  const b = document.getElementById(id), label = b.textContent;
+  b.onclick = () => {
+    b.blur();
+    if (!b.dataset.armed) { b.dataset.armed = 1; b.textContent = question; b.classList.add("on");
+      setTimeout(() => { delete b.dataset.armed; b.textContent = label; b.classList.remove("on"); }, 3000); return; }
+    delete b.dataset.armed; b.textContent = label; b.classList.remove("on");
+    action();
+  };
+}
+confirmButton("bReset", "Really restart?", () => restartComputer());
+if (wipeDisk) { document.getElementById("bWipe").hidden = false; confirmButton("bWipe", "Erase your files?", wipeDisk); }
 document.getElementById("bPower").onclick = () => { initAudio(); document.getElementById("power").remove(); };
 
 
@@ -443,7 +484,7 @@ const title = (n) => n.replace(/\.(\d)$/, "($1)");
 async function loadMan() {
   if (manLoaded) return; manLoaded = true;
   let pages = [];
-  try { pages = await (await fetch("/man.json")).json(); } catch (e) {}
+  try { pages = await (await fetch("man.json")).json(); } catch (e) {}
   manPages = [{ name: "v0 tips", text: V0_TIPS_TEXT, tips: true }, ...pages];
   renderManList();
 }
@@ -494,7 +535,6 @@ document.getElementById("manQ").addEventListener("input", () => renderManList())
 
 newPaper(); col = 0;
 window.addEventListener("resize", resize); resize();
-connect();
 requestAnimationFrame(frame);
 </script>
 </body>

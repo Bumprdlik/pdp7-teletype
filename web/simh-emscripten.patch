@@ -1,0 +1,78 @@
+diff --git a/sim_console.c b/sim_console.c
+index 1c0e82d..7a87d85 100644
+--- a/sim_console.c
++++ b/sim_console.c
+@@ -3756,6 +3756,44 @@ if (ch != 0177) {
+ return SCPE_OK;
+ }
+ 
++#elif defined (__EMSCRIPTEN__)
++
++/* Browser (Emscripten): the console is a JavaScript teletype, see web/web_glue.c */
++
++extern int web_getkey (void);                           /* -1 = no key */
++extern void web_putchar (int c);
++extern int web_key_ready (int ms_timeout);
++
++static t_stat sim_os_ttinit (void) { return SCPE_OK; }
++static t_stat sim_os_ttrun (void) { return SCPE_OK; }
++static t_stat sim_os_ttcmd (void) { return SCPE_OK; }
++static t_stat sim_os_ttclose (void) { return SCPE_OK; }
++static t_bool sim_os_fd_isatty (int fd) { return TRUE; }
++
++static t_stat sim_os_poll_kbd (void)
++{
++int c = web_getkey ();
++
++if (c < 0)
++    return SCPE_OK;
++if (sim_brk_char && (c == sim_brk_char))
++    return SCPE_BREAK;
++if (sim_int_char && (c == sim_int_char))
++    return SCPE_STOP;
++return (c | SCPE_KFLAG);
++}
++
++static t_bool sim_os_poll_kbd_ready (int ms_timeout)
++{
++return web_key_ready (ms_timeout) ? TRUE : FALSE;
++}
++
++static t_stat sim_os_putchar (int32 out)
++{
++web_putchar (out & 0xFF);
++return SCPE_OK;
++}
++
+ #elif defined (BSDTTY)
+ 
+ #include <sgtty.h>
+diff --git a/sim_timer.c b/sim_timer.c
+index 333d26a..e1844ba 100644
+--- a/sim_timer.c
++++ b/sim_timer.c
+@@ -592,6 +592,16 @@ return 0;
+ #endif /* CLOCK_REALTIME */
+ #endif /* !defined(_POSIX_SOURCE) && defined(SIM_ASYNCH_IO) */
+ 
++#if defined (__EMSCRIPTEN__)
++extern void web_sleep (unsigned int ms);                /* yields to the browser */
++uint32 sim_os_ms_sleep (unsigned int milliseconds)
++{
++uint32 stime = sim_os_msec ();
++
++web_sleep (milliseconds);
++return sim_os_msec () - stime;
++}
++#else
+ uint32 sim_os_ms_sleep (unsigned int milliseconds)
+ {
+ uint32 stime = sim_os_msec ();
+@@ -602,6 +612,7 @@ treq.tv_nsec = (milliseconds % MILLIS_PER_SEC) * NANOS_PER_MILLI;
+ (void) nanosleep (&treq, NULL);
+ return sim_os_msec () - stime;
+ }
++#endif /* __EMSCRIPTEN__ */
+ 
+ #if defined(NEED_THREAD_PRIORITY)
+ #undef NEED_THREAD_PRIORITY
