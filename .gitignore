@@ -4,3 +4,4 @@ __pycache__/
 deps/
 web/build/
 web/dist/
+tests/out/

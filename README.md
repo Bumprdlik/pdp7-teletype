@@ -102,6 +102,21 @@ python3 -m http.server -d web/dist 8034      # try it at http://127.0.0.1:8034
 - `.github/workflows/pages.yml` builds and deploys it on every push to `main` once Pages is set to
   "GitHub Actions" in the repository settings.
 
+## Tests
+
+`tests/regress.mjs` drives the page in a headless Brave/Chromium (muted, throw-away profile) and
+checks the desktop and phone layouts (portrait and landscape, with and without the on-screen
+keyboard), typing, the manual, the menu and the saved disk. It needs Node 22+ and no npm packages.
+
+```sh
+web/build.sh && node tests/regress.mjs          # the static build
+node tests/regress.mjs --server                 # plus teletype.py (in a temporary disk directory)
+node tests/regress.mjs --only phone --keep      # a subset, with screenshots in tests/out/
+```
+
+The tests only use the DOM and `window.__teletype` (what was printed, plus a little layout state),
+so they keep working when the page's code is reorganized.
+
 ## Manual
 
 The **Manual** panel shows the man pages shipped with pdp7-unix (`man/` next to its `build/`

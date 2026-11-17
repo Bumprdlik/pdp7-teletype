@@ -27,9 +27,9 @@ DEPS = os.path.join(HERE, "deps")  # filled by setup.sh
 UNIX_BUILD = os.path.expanduser(os.environ.get("PDP7_UNIX_BUILD", os.path.join(DEPS, "pdp7-unix", "build")))
 SIMH = os.path.expanduser(os.environ.get("SIMH_PDP7", os.path.join(DEPS, "simh", "BIN", "pdp7")))
 MAN_DIR = os.path.expanduser(os.environ.get("PDP7_UNIX_MAN", os.path.join(os.path.dirname(UNIX_BUILD), "man")))
-DISK_DIR = os.path.join(HERE, "disk")
+DISK_DIR = os.path.expanduser(os.environ.get("TELETYPE_DISK", os.path.join(HERE, "disk")))
 TEL_PORT = 0          # SIMH console: a free port is picked on every start
-HTTP_PORT = 8033
+HTTP_PORT = int(os.environ.get("TELETYPE_PORT", "8033"))
 HISTORY_MAX = 64 * 1024
 
 IAC, DONT, DO, WONT, WILL, SB, SE = 255, 254, 253, 252, 251, 250, 240

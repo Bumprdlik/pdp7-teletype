@@ -400,6 +400,7 @@ function play(name) {
 const queueOut = []; let turbo = false, lid = false, budget = 0, last = 0;
 function out(ch, sound) {
   const code = ch.charCodeAt(0) & 0x7f;
+  printed += ch; if (printed.length > 200000) printed = printed.slice(-100000);
   if (code === 13) { col = 0; if (sound) play("cr"); }
   else if (code === 10) { lines.push(mkLine()); cur++; scrollAnim += LH; if (lines.length > 3000) { lines.splice(0, 1000); cur -= 1000; } if (sound) play("lf"); }
   else if (code === 7) { if (sound) play("bell"); }
@@ -715,6 +716,17 @@ let kbdBeforeMan = false;
 document.getElementById("bMan").onclick = (e) => { e.target.blur(); toggleMan(); };
 document.getElementById("manClose").onclick = () => toggleMan(false);
 document.getElementById("manQ").addEventListener("input", () => renderManList());
+
+// ---------- read-only view for tests (tests/regress.mjs) and debugging in the console ----------
+let printed = "";                              // everything printed on the paper (latest 100-200 kB)
+window.__teletype = {
+  get printed() { return printed; },
+  get state() {
+    return { scale: SCALE, pan: PAN, panX, short: SHORT, side: document.body.classList.contains("side"),
+             col, turbo, lid, keyboard: kbdOpen(), manual: document.body.classList.contains("manopen"),
+             menu: more.classList.contains("open"), queued: queueOut.length, staticBuild: STATIC_BUILD };
+  },
+};
 
 newPaper(); col = 0;
 window.addEventListener("resize", resize); resize();
