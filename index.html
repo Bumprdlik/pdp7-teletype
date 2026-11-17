@@ -71,19 +71,19 @@
     #more .size { display: flex; gap: 6px; }
     #more .size button { flex: 1; text-align: center; }
   }
-  /* phones in landscape: the bar becomes a column on the left, so the paper keeps the full height */
-  @media (pointer: coarse) and (orientation: landscape) {
-    :root { --sidew: 104px; }
-    #bar { top: 0; bottom: 0; right: auto; width: var(--sidew); box-sizing: border-box; flex-direction: column;
-           align-items: stretch; padding: 8px 6px; background: linear-gradient(90deg, #000d, #0000); }
-    #bar .compact { margin-left: 0; }
-    #more { top: 8px; right: auto; left: calc(100% + 4px); max-height: calc(100% - 16px); overflow-y: auto; }
-    #stage { left: var(--sidew); }
-    #man { top: 0; left: var(--sidew); width: calc(100vw - var(--sidew));
-           transform: translateX(calc(-100% - var(--sidew))); }   /* closed: fully off screen, not under the bar */
-    #man.open { transform: none; }
-    #more .size { display: none; }             /* the type size only matters in portrait */
-  }
+  /* phones in landscape (body.side, set from the screen orientation in resize(): the CSS orientation
+     follows the window, which turns "landscape" in portrait once the keyboard takes half the height):
+     the bar becomes a column on the left, so the paper keeps the full height */
+  body.side { --sidew: 104px; }
+  body.side #bar { top: 0; bottom: 0; right: auto; width: var(--sidew); box-sizing: border-box; flex-direction: column;
+                   align-items: stretch; padding: 8px 6px; background: linear-gradient(90deg, #000d, #0000); }
+  body.side #bar .compact { margin-left: 0; }
+  body.side #more { top: 8px; right: auto; left: calc(100% + 4px); max-height: calc(100% - 16px); overflow-y: auto; }
+  body.side #stage { left: var(--sidew); }
+  body.side #man { top: 0; left: var(--sidew); width: calc(100vw - var(--sidew));
+                   transform: translateX(calc(-100% - var(--sidew))); }   /* closed: fully off screen, not under the bar */
+  body.side #man.open { transform: none; }
+  body.side #more .size { display: none; }     /* the type size only matters in portrait */
 </style>
 </head>
 <body>
@@ -131,7 +131,12 @@ let H = 0, PRINT_Y = 0, DPR = 1, SCALE = 1;
 const TYPE_SCALES = [.4, .5, .6, .7, .8, .9, 1];
 let portraitScale = .7;
 try { const v = parseFloat(localStorage.getItem("pdp7-portrait-scale")); if (TYPE_SCALES.includes(v)) portraitScale = v; } catch (e) {}
-const SIDE_MQ = "(pointer: coarse) and (orientation: landscape)";
+// Orientation of the phone itself. The window can't tell: in portrait, the on-screen keyboard
+// leaves a window that is wider than tall.
+function phonePortrait() {
+  const o = screen.orientation && screen.orientation.type;
+  return o ? o.startsWith("portrait") : screen.height > screen.width;
+}
 let PAN = false, VIS_W = 0, SHORT = false;
 
 function resize() {
@@ -139,12 +144,14 @@ function resize() {
   let manW = document.body.classList.contains("manopen") ? document.getElementById("man").offsetWidth : 0;
   const compact = matchMedia("(max-width: 900px), (pointer: coarse)").matches;
   if (compact) manW = 0;                           // full-screen manual (phones): the paper stays behind it
-  const side = matchMedia(SIDE_MQ).matches, barEl = document.getElementById("bar");
+  const touch = matchMedia("(pointer: coarse)").matches, portrait = phonePortrait();
+  const side = touch && !portrait, barEl = document.getElementById("bar");
+  document.body.classList.toggle("side", side);
   const vv = window.visualViewport;
   const viewH = vv ? vv.height : window.innerHeight;                    // minus the phone keyboard
   const availW = window.innerWidth - manW - (side ? barEl.offsetWidth : compact ? 0 : 24);
   const fit = Math.min(1, availW / W);
-  SCALE = compact && window.innerHeight > window.innerWidth ? Math.max(fit, portraitScale) : fit;
+  SCALE = compact && (touch ? portrait : window.innerHeight > window.innerWidth) ? Math.max(fit, portraitScale) : fit;
   PAN = W * SCALE > availW + 1;
   VIS_W = availW / SCALE;
   SHORT = viewH < 360;
