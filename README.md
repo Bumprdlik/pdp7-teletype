@@ -7,6 +7,9 @@ Instead of a terminal window, output is typed onto a roll of paper: upper case o
 72 characters per line, **10 characters per second**, uneven strikes, ink bleed, a paper bail,
 a moving type cylinder and machine sounds.
 
+**▶ Try it online: <https://bumprdlik.github.io/pdp7-teletype/>**. It runs entirely in your
+browser, on desktop or phone, with nothing to install. Log in as `ken` / `ken`.
+
 ## How it works
 
 ```
