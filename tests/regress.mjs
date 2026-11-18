@@ -302,6 +302,8 @@ test("desktop: wheel scrollback, End, Lid, Tear off paper", async ({ page }) => 
   await page.click("#bLid");
   assert(!(await page.state()).lid, "the Lid button opens it again");
   assert((await page.state()).line > 10, "many lines printed");
+  // the "@ " prompt may still be arriving after ls: wait until it is printed and the head stands still
+  await page.until(`window.__teletype.printed.endsWith("@ ") && window.__teletype.state.queued === 0`, 5000, "prompt printed");
   const col = (await page.state()).col;
   await page.click("#bTear");
   const s = await page.state();
