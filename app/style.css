@@ -36,6 +36,7 @@ canvas { display: block; }
            font: 14px/1.45 "Courier New", "Nimbus Mono PS", "Liberation Mono", monospace; }
 #manPage .hdr { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 1.2em; }
 #manPage .pre { white-space: pre-wrap; }
+#manPage .code { white-space: pre; overflow-x: auto; margin-left: 2ch; }
 #manPage .tips { white-space: pre-wrap; padding-left: 13ch; text-indent: -13ch; }
 #manPage .para { white-space: normal; }
 #manPage .sp { height: .9em; }

@@ -1,4 +1,4 @@
-// The Unix v0 manual panel: the 1970 man pages (man.json) plus short "v0 tips", "ed", "b" and "as" pages, with search.
+// The Unix v0 manual panel: the 1970 man pages (man.json) plus short "v0 tips", "ed", "b", "as" pages and an assembly tutorial, with search.
 import { $ } from "./util.js";
 
 const V0_TIPS = [                              // [topic, text]; not part of the original manual
@@ -103,7 +103,7 @@ const B = [                                    // [topic, text], or [heading, nu
   ["puts(s)", "a string:\nputs(s) $(\n  auto w;\n  while (1) $(\n    w = *s;\n    if (w / 512 == 4) return;\n    if (w % 512 == 4) $( write(w / 512 * 512); return; $)\n    write(w);\n    s = s + 1;\n  $)\n$)"],
 ];
 const AS = [                                   // [topic, text], or [heading, null]; checked with as in SIMH
-  ["AS", "the PDP-7 assembler. Unix v0 itself, ed, as and all the commands are written with it."],
+  ["AS", "the PDP-7 assembler. Unix v0 itself, ed, as and all the commands are written with it. New to assembly? Start with the \"as tutorial\" page."],
   ["BUILD AND RUN", null],
   ["where", "in dmr's directory (log in as dmr/dmr): as and op.s, the names of the instructions, are there"],
   ["as op.s x.s", "assemble. op.s comes first: it defines lac, dac, sys, write... It prints I, II and the file names and writes a.out."],
@@ -161,14 +161,49 @@ const AS = [                                   // [topic, text], or [heading, nu
   ["file names", "4 words, 8 characters padded with spaces: <he>;<ll>;<o.>;<b 040 is hello.b"],
   ["more", "op.s lists all calls: seek, chdir, unlink, fork, time..."],
   ["EXAMPLE", null],
-  ["hello", "prints hello, then ab five times:\n   lac d1\n   sys write; s; 3\n   -5\n   dac c\n1: lac d1\n   sys write; t; 1\n   isz c\n   jmp 1b\n   sys exit\ns: <he>;<ll>;<o 012\nt: <ab>\nd1: 1\nc: 0"],
+  ["hello", "prints hello, then ab five times:\n   lac d1\n   sys write; s; 3\n   -5\n   dac c\n1:\n   lac d1\n   sys write; t; 1\n   isz c\n   jmp 1b\n   sys exit\ns: <he>;<ll>;<o 012\nt: <ab>\nd1: 1\nc: 0"],
+];
+const AS_TUT = [                               // ["h" | "p" | "code", text]; the programs were run in SIMH
+  ["p", "A first look at assembly, step by step. The \"as (assembler)\" page is the short reference to come back to."],
+  ["h", "1. THE MACHINE"],
+  ["p", "Memory is a row of numbered cells, 8192 of them. Each cell (a word) holds one 18-bit number. A program is words in memory too: the processor does them one after another, from the top down."],
+  ["p", "The processor has one place to work in: AC, the accumulator. Nearly everything goes through it: load a number into AC, do something with it, store it back."],
+  ["p", "Each line of a program becomes one word. lac d1 is an instruction: load AC from the cell named d1. Everything after \" is a comment."],
+  ["h", "2. HELLO"],
+  ["p", "Log in as dmr (password dmr): as and op.s are in that directory. Type the program into ed:"],
+  ["code", "@ ed\na\n   lac d1           \" AC = what is in cell d1, i.e. 1\n   sys write; s; 3  \" Unix: write 3 words from s\n   sys exit         \" Unix: end the program\ns: <he>;<ll>;<o 012 \" the text: 3 words, 2 characters each\nd1: 1               \" a cell holding the number 1\n.\nw h.s\nq"],
+  ["p", "Then assemble it and run it:"],
+  ["code", "@ as op.s h.s\nI\nII\nop.s\nh.s\n@ a.out\nhello"],
+  ["p", "s: and d1: are labels, names for the cell the line ends up in. You write names; as works out the numbers."],
+  ["p", "Why d1 and not just 1? lac 1 does not mean \"load one\", it means \"load what is in cell number 1\". An instruction cannot carry a number, so every constant gets a cell of its own. The Unix sources name them d1, d10 (decimal), o12 (octal) and so on."],
+  ["p", "sys write is a request to Unix. AC says where to write (1 is the terminal), and the two words after the call say where the text starts and how many words to write. A word holds two characters: <h puts h into the upper half and e> into the lower half, so <he> is \"he\". 012 is the newline character."],
+  ["p", "Numbers that start with 0 are octal (base 8), as on all old DEC machines: 012 is ten."],
+  ["h", "3. A LOOP"],
+  ["p", "Print ab five times. There is no \"repeat 5 times\". The trick is isz, increment and skip if zero: count up from -5, and when the count reaches 0, isz skips the jump back."],
+  ["code", "   -5               \" AC = -5\n   dac c            \" store AC into cell c\n1:\n   lac d1           \" AC = 1, the terminal\n   sys write; t; 1  \" write 1 word: ab\n   isz c            \" c = c + 1; if c is now 0, skip the next word\n   jmp 1b           \" jump back to 1:\n   sys exit\nt: <ab>\nd1: 1\nc: 0"],
+  ["p", "It prints ababababab, and the @ prompt follows on the same line: nothing printed a newline. Section 5 shows how to add one."],
+  ["p", "-5 on a line of its own is a trick: a negative number happens to be the law instruction, load AC with this value. It is the one way to get a number into AC without a cell for it."],
+  ["p", "dac c stores AC into c (deposit AC). 1: is a local label: jmp 1b jumps to the nearest 1: backwards, 1f would look forwards. The local labels 0 to 9 can be used again and again, so a loop needs no name of its own."],
+  ["h", "4. DECISIONS"],
+  ["p", "There is no if. Instead some instructions skip the next word when something is true, and the next word is usually a jmp. A piece of a program:"],
+  ["code", "   lac x\n   sad d1           \" skip the next word if AC differs from d1\n   jmp 1f           \" AC is 1: jump forward to 1:\n   ...              \" AC is not 1\n1:"],
+  ["p", "sad: skip if AC differs from a cell. sza: skip if AC is zero, sna: if it is not zero, sma: if it is negative, spa: if it is not negative."],
+  ["h", "5. SUBROUTINES"],
+  ["p", "jms x calls a subroutine: it writes the address it came from into cell x and goes on with the cell after x. So a subroutine starts with an empty cell, 0, and ends with jmp x i: jump to the address stored in x. i means indirect: not to x, but to where x points."],
+  ["code", "   jms nl           \" call nl\n   jms nl           \" and once more\n   sys exit\nnl: 0               \" the return address lands here\n   lac d1\n   sys write; n; 1\n   jmp nl i         \" return\nn: 012\nd1: 1"],
+  ["p", "It prints two empty lines. n: 012 is a word with a NUL in its upper half, which is not printed, and a newline in the lower one."],
+  ["h", "6. WHEN IT GOES WRONG"],
+  ["p", "as prints a letter and a line number, e.g. u 0001: an unknown name in line 1 (x: syntax, g: a character it does not accept). It writes a.out anyway, so fix the errors before running it."],
+  ["p", "A program that never ends: Esc stops it, Restart computer always works. Never run n.out, the symbol table as leaves behind: it hangs the machine."],
+  ["p", "Next: the \"as (assembler)\" page lists the instructions and system calls, for example open and read to read a file."],
 ];
 const BUILTIN = [                              // extra pages, not part of the original manual
   { name: "v0 tips", rows: V0_TIPS },
   { name: "ed (editor)", rows: ED },
   { name: "b (language)", rows: B },
+  { name: "as tutorial", doc: AS_TUT },
   { name: "as (assembler)", rows: AS },
-].map((p) => ({ ...p, tips: true, text: p.rows.map(([k, v]) => k + " " + (v ?? "")).join("\n") }));
+].map((p) => ({ ...p, tips: true, text: p.doc ? p.doc.map(([, v]) => v).join("\n") : p.rows.map(([k, v]) => k + " " + (v ?? "")).join("\n") }));
 let manPages = [], manSel = 0, manLoaded = false;
 const esc = (t) => t.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
 
@@ -231,7 +266,9 @@ function renderManList() {
 function showManPage(q) {
   const el = $("manPage"), p = manPages[manSel];
   if (!p) { el.textContent = "No manual pages found (set PDP7_UNIX_MAN)."; return; }
-  el.innerHTML = p.tips ? p.rows.map(([k, v], i) => v === null
+  if (p.doc) el.innerHTML = p.doc.map(([kind, v]) => kind === "h" ? `<div class="sp"></div><div class="para"><b>${esc(v)}</b></div>`
+    : kind === "code" ? `<div class="sp"></div><div class="pre code">${esc(v)}</div><div class="sp"></div>` : `<div class="para">${esc(v)}</div><div class="sp"></div>`).join("");
+  else el.innerHTML = p.tips ? p.rows.map(([k, v], i) => v === null
     ? `<div class="sp"></div><div class="tips"><b>${esc(k)}</b></div>`
     : `<div class="tips">${esc(k.padEnd(12))} ${esc(v)}</div>` + (i ? "" : '<div class="sp"></div>')).join("") : roffToHtml(p.text);
   if (!q) return;
