@@ -1,4 +1,4 @@
-// The Unix v0 manual panel: the 1970 man pages (man.json) plus short "v0 tips" and "ed" pages, with search.
+// The Unix v0 manual panel: the 1970 man pages (man.json) plus short "v0 tips", "ed" and "b" pages, with search.
 import { $ } from "./util.js";
 
 const V0_TIPS = [                              // [topic, text]; not part of the original manual
@@ -14,7 +14,7 @@ const V0_TIPS = [                              // [topic, text]; not part of the
   ["Esc", "ALT MODE: interrupts a running program, like Ctrl+C today (e.g. ed). The login shell ignores it on purpose. Programs may leave temp files behind (ed: e.tmp)."],
   ["FILES", "ls, list (details), stat, cat, cp, mv, ln, rm, chmod, chown, od"],
   ["ed", "a (append text) ... . (end), p, 1,$p, /word/, w name, q. A reply of ? means error. More on the \"ed (editor)\" page."],
-  ["B LANGUAGE", "in dmr's directory: b hello.b hello.s, then as op.s bl.s hello.s bi.s, then a.out"],
+  ["B LANGUAGE", "in dmr's directory: b hello.b hello.s, then as op.s bl.s hello.s bi.s, then a.out. More on the \"b (language)\" page."],
   ["DO NOT", "run n.out - it is the assembler's symbol table, not a program. It hangs the machine; use Restart computer."],
   ["", "run init - it is the system's first process; a second copy fights the shell for the terminal."],
   ["LOG OUT", "there is no real logout: Ctrl+D is not end of input in v0 and the shell ignores Esc. To switch users use Restart computer."],
@@ -60,9 +60,52 @@ const ED = [                                   // [topic, text], or [heading, nu
   ["NOT IN V0", null],
   ["", "ed name, i (insert), n (numbered list), t (copy), m (move), u (undo), ! (shell command), Q, g: all came later."],
 ];
+const B = [                                    // [topic, text], or [heading, null]; checked with b.b in SIMH
+  ["B", "the language Ken Thompson wrote for the PDP-7, the parent of C. The original PDP-7 B is lost; this disk has a 2016 reconstruction of the compiler (b.b, Robert Swierczek)."],
+  ["BUILD AND RUN", null],
+  ["where", "in dmr's directory (log in as dmr/dmr): b, as and the run-time files op.s bl.s bi.s are there"],
+  ["ed x.b", "write the program (see the ed page)"],
+  ["b x.b x.s", "compile B into assembly. Silent when all is well; an error prints a two-letter code and the line number, e.g. sz12"],
+  ["as ...", "as op.s bl.s x.s bi.s - always these four, in this order. It prints I, II and the file names and makes a.out."],
+  ["a.out", "run the program. a.out in: read() reads file \"in\"; a.out in out: write() also goes into a new file \"out\"."],
+  ["DO NOT", "run n.out: it is the assembler's symbol table and hangs the machine"],
+  ["PROGRAM", null],
+  ["main() $( $)", "a function; the program starts in main. $( and $) are the braces: the Teletype has no { }."],
+  ["f(a, b) $(", "a function with parameters. return(x); or return; leaves it."],
+  ["auto", "auto i, j; local variables. auto v 10; is a local vector of 10 words (no brackets)."],
+  ["extrn", "extrn x; inside a function lets it use the global x. Calling functions needs no extrn."],
+  ["x;  x 5;", "a global variable (outside any function), 0 or 5 at the start"],
+  ["x[10];", "a global vector; x[3] 1, 2, 3; also gives initial values"],
+  ["/* ... */", "a comment"],
+  ["STATEMENTS", null],
+  ["if (c) s", "if (c) s; else s2; - else is optional"],
+  ["while (c) s", "the only loop: there is no for, do, switch, break or continue"],
+  ["$( ... $)", "several statements as one"],
+  ["l: goto l;", "a label and a jump"],
+  ["EXPRESSIONS", null],
+  ["= + - * / %", "assignment and arithmetic on 18-bit words. / and % give wrong results for negative numbers."],
+  ["== != < >", "comparisons, also <= and >="],
+  ["& |", "and, or (bitwise; they also work in conditions). There is no && || << >> ++ -- =+ or ?:"],
+  ["! -", "not, minus"],
+  ["*p  &x", "the word p points to; the address of x"],
+  ["v[i]", "word i of vector v, the same as *(v + i)"],
+  ["VALUES", null],
+  ["123  010", "decimal; a leading 0 means octal (010 is 8)"],
+  ["'a'  'ab'", "a character constant: one or two characters in one word"],
+  ["\"text\"", "a string: two characters per word, ending with *e. Nothing in the library prints it: see PRINTING."],
+  ["*n *t *0 *e", "newline, tab, NUL, end of file. *( *) give { }; ** *' *\" give * ' \"."],
+  ["LIBRARY", null],
+  ["write(c)", "print the one or two characters in c: write('hi'); write('*n');"],
+  ["read()", "the next character of input; *e (the number 4) at the end"],
+  ["flush()", "print what write() keeps in its buffer now (it happens anyway when the program ends)"],
+  ["PRINTING", null],
+  ["printn(n)", "a number (n >= 0):\nprintn(n) $(\n  if (n > 9) printn(n / 10);\n  write(n % 10 + '0');\n$)"],
+  ["puts(s)", "a string:\nputs(s) $(\n  auto w;\n  while (1) $(\n    w = *s;\n    if (w / 512 == 4) return;\n    if (w % 512 == 4) $( write(w / 512 * 512); return; $)\n    write(w);\n    s = s + 1;\n  $)\n$)"],
+];
 const BUILTIN = [                              // extra pages, not part of the original manual
   { name: "v0 tips", rows: V0_TIPS },
   { name: "ed (editor)", rows: ED },
+  { name: "b (language)", rows: B },
 ].map((p) => ({ ...p, tips: true, text: p.rows.map(([k, v]) => k + " " + (v ?? "")).join("\n") }));
 let manPages = [], manSel = 0, manLoaded = false;
 const esc = (t) => t.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);

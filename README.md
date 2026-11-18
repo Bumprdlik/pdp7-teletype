@@ -136,7 +136,7 @@ so they keep working when the page's code is reorganized.
 ## Manual
 
 The **Manual** panel shows the man pages shipped with pdp7-unix (`man/` next to its `build/`
-directory, override with `PDP7_UNIX_MAN`) plus a short "v0 tips" page and an `ed` guide
+directory, override with `PDP7_UNIX_MAN`) plus a short "v0 tips" page, a B language page and an `ed` guide
 (after [An introduction to the UNIX ed line editor](https://gunkies.org/wiki/An_introduction_to_the_UNIX_ed_line_editor),
 Computer History Wiki, GFDL 1.2, cut down to what v0 `ed` can do). The search box filters
 pages by name and content and highlights the matches.
