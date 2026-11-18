@@ -1,4 +1,4 @@
-// The Unix v0 manual panel: the 1970 man pages (man.json) plus a short "v0 tips" page, with search.
+// The Unix v0 manual panel: the 1970 man pages (man.json) plus short "v0 tips" and "ed" pages, with search.
 import { $ } from "./util.js";
 
 const V0_TIPS = [                              // [topic, text]; not part of the original manual
@@ -13,13 +13,57 @@ const V0_TIPS = [                              // [topic, text]; not part of the
   ["@", "kills the whole line"],
   ["Esc", "ALT MODE: interrupts a running program, like Ctrl+C today (e.g. ed). The login shell ignores it on purpose. Programs may leave temp files behind (ed: e.tmp)."],
   ["FILES", "ls, list (details), stat, cat, cp, mv, ln, rm, chmod, chown, od"],
-  ["ed", "a (append text) ... . (end), p, 1,$p, /word/, w name, q. A reply of ? means error."],
+  ["ed", "a (append text) ... . (end), p, 1,$p, /word/, w name, q. A reply of ? means error. More on the \"ed (editor)\" page."],
   ["B LANGUAGE", "in dmr's directory: b hello.b hello.s, then as op.s bl.s hello.s bi.s, then a.out"],
   ["DO NOT", "run n.out - it is the assembler's symbol table, not a program. It hangs the machine; use Restart computer."],
   ["", "run init - it is the system's first process; a second copy fights the shell for the terminal."],
   ["LOG OUT", "there is no real logout: Ctrl+D is not end of input in v0 and the shell ignores Esc. To switch users use Restart computer."],
 ];
-const V0_TIPS_TEXT = V0_TIPS.map(([k, v]) => k + " " + v).join("\n");
+const ED = [                                   // [topic, text], or [heading, null]; checked against v0 ed in SIMH
+  ["ED", "the editor. After \"An introduction to the UNIX ed line editor\" (Computer History Wiki, GFDL 1.2), cut down to what the 1970 ed can do."],
+  ["STARTING AND ENDING", null],
+  ["ed", "start the editor; it prints \"edit\". It takes no file name: load a file with r."],
+  ["r name", "read file \"name\" into the buffer (at the end); prints the number of characters"],
+  ["w", "write the buffer to the file last read or written (? if there is none yet)"],
+  ["w name", "write the whole buffer into \"name\" (at most 8 characters); prints the number of characters"],
+  ["2,5w name2", "write lines 2 to 5 into \"name2\""],
+  ["q", "leave the editor at once. It does NOT ask about unsaved changes: w first."],
+  ["MODES", "ed starts in command mode; a and c switch to text mode. A line with only a dot (.) goes back to command mode."],
+  ["?", "the only error message: bad command, no such line, empty buffer, file not found..."],
+  ["LINES", null],
+  [".", "current line"],
+  ["$", "last line"],
+  ["5", "line 5 (a leading 0 means octal: 010 is line 8)"],
+  [".-1  $-2", "counted from . or $"],
+  ["2,5", "lines 2 to 5 (inclusive)"],
+  ["1,$", "all lines"],
+  ["/text/", "next line containing \"text\" (wraps around); ?text? searches backwards; // repeats the last search"],
+  ["^  $", "in a search: start / end of the line. Nothing else is special: . * [ match themselves."],
+  ["ENTERING TEXT", null],
+  ["4a", "append after line 4"],
+  ["a", "without a line number: append at the end of the file"],
+  ["0a", "insert before line 1. There is no i: to insert before line 3 use 2a."],
+  ["5c", "replace line 5 with new text"],
+  ["3,8c", "replace lines 3 to 8 (inclusive) with new text"],
+  ["#  @", "erase and kill work in text mode too, so these two characters cannot be put into a file"],
+  ["LIST, DELETE, CHANGE", null],
+  ["p", "print the current line"],
+  ["2p", "print line 2"],
+  ["3,7p", "print lines 3 to 7 (inclusive)"],
+  ["RETURN", "an empty line prints the next line; a line number alone (5) prints that line"],
+  ["=", "number of lines; .= the current line number"],
+  ["10d", "delete line 10"],
+  ["2,5d", "delete lines 2 to 5 (inclusive)"],
+  ["s/old/new/", "substitute the first \"old\" with \"new\" in the current line. The closing / is required."],
+  ["3,8s/a/b/", "the same in lines 3 to 8; 1,$s/a/b/ in the whole file. Only the first match in each line; no g, no &."],
+  ["Esc", "interrupts ed (the edits are lost); it leaves e.tmp behind"],
+  ["NOT IN V0", null],
+  ["", "ed name, i (insert), n (numbered list), t (copy), m (move), u (undo), ! (shell command), Q, g: all came later."],
+];
+const BUILTIN = [                              // extra pages, not part of the original manual
+  { name: "v0 tips", rows: V0_TIPS },
+  { name: "ed (editor)", rows: ED },
+].map((p) => ({ ...p, tips: true, text: p.rows.map(([k, v]) => k + " " + (v ?? "")).join("\n") }));
 let manPages = [], manSel = 0, manLoaded = false;
 const esc = (t) => t.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
 
@@ -58,7 +102,7 @@ async function loadMan() {
   if (manLoaded) return; manLoaded = true;
   let pages = [];
   try { pages = await (await fetch("man.json")).json(); } catch (e) {}
-  manPages = [{ name: "v0 tips", text: V0_TIPS_TEXT, tips: true }, ...pages];
+  manPages = [...BUILTIN, ...pages];
   renderManList();
 }
 function renderManList() {
@@ -82,7 +126,9 @@ function renderManList() {
 function showManPage(q) {
   const el = $("manPage"), p = manPages[manSel];
   if (!p) { el.textContent = "No manual pages found (set PDP7_UNIX_MAN)."; return; }
-  el.innerHTML = p.tips ? V0_TIPS.map(([k, v], i) => `<div class="tips">${esc(k.padEnd(12))} ${esc(v)}</div>` + (i ? "" : '<div class="sp"></div>')).join("") : roffToHtml(p.text);
+  el.innerHTML = p.tips ? p.rows.map(([k, v], i) => v === null
+    ? `<div class="sp"></div><div class="tips"><b>${esc(k)}</b></div>`
+    : `<div class="tips">${esc(k.padEnd(12))} ${esc(v)}</div>` + (i ? "" : '<div class="sp"></div>')).join("") : roffToHtml(p.text);
   if (!q) return;
   const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), nodes = [];
   while (walker.nextNode()) nodes.push(walker.currentNode);

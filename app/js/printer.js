@@ -1,4 +1,4 @@
-// The print loop: characters from the PDP-7 wait in a queue and are printed at 10 chars per
+// The print loop: characters from the PDP-7 wait in a queue and are printed at CPS chars per
 // second (Turbo: much faster), with sound. Runs every animation frame and redraws when needed.
 import { paper, printChar, newPaper } from "./paper.js";
 import { updatePan } from "./layout.js";
@@ -6,6 +6,7 @@ import { render, headMoving } from "./render.js";
 import { play } from "./sound.js";
 
 const queue = [];
+const CPS = 20;                       // a real Model 33 does 10; twice that feels closer to the films
 let turbo = false, budget = 0, last = 0;
 let printed = "";                     // everything printed (latest 100-200 kB), for tests and debugging
 
@@ -30,7 +31,7 @@ export function replaceWithHistory(text) {
 
 function frame(t) {
   const dt = last ? (t - last) / 1000 : 0; last = t;
-  budget += dt * (turbo ? 3000 : 10);
+  budget += dt * (turbo ? 3000 : CPS);
   let n = 0;
   while (budget >= 1 && queue.length) { budget--; out(queue.shift(), !turbo || n++ % 40 === 0); }
   if (!queue.length) budget = Math.min(budget, 1);

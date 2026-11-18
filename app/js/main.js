@@ -1,7 +1,7 @@
 // Teletype Model 33 for PDP-7 Unix v0: wires the modules together.
 //
 //   paper.js     printed lines and the print position      render.js    drawing it on the canvas
-//   layout.js    fitting the paper to the window, panning  printer.js   10 chars/s print loop
+//   layout.js    fitting the paper to the window, panning  printer.js   20 chars/s print loop
 //   sound.js     machine sounds                            transport.js the PDP-7 (server or worker)
 //   keyboard.js  typing, also on phones                    gestures.js  wheel and touch
 //   manual.js    the Unix v0 manual panel                  ui.js        buttons and menu

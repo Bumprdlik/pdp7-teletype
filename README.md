@@ -4,7 +4,7 @@ A paper-roll **Teletype Model 33** in your browser, as the console for **PDP-7 U
 (the first Unix, from 1969, resurrected by the [pdp7-unix](https://github.com/DoctorWkt/pdp7-unix) project).
 
 Instead of a terminal window, output is typed onto a roll of paper: upper case only,
-72 characters per line, **10 characters per second**, uneven strikes, ink bleed, a paper bail,
+72 characters per line, **20 characters per second** (a real Model 33 does 10), uneven strikes, ink bleed, a paper bail,
 a moving type cylinder and machine sounds.
 
 **▶ Try it online: <https://bumprdlik.github.io/pdp7-teletype/>**. It runs entirely in your
@@ -26,7 +26,7 @@ The page is plain HTML, CSS and JavaScript modules, with no build step and no de
 | `index.html`, `style.css` | the page |
 | `js/main.js` | wires the modules together |
 | `js/paper.js`, `js/render.js` | the printed paper and drawing it on the canvas |
-| `js/printer.js` | the print loop: 10 characters per second, Turbo |
+| `js/printer.js` | the print loop: 20 characters per second, Turbo |
 | `js/layout.js` | fitting the paper to the window, panning it on phones |
 | `js/keyboard.js`, `js/gestures.js` | typing (also with phone keyboards), wheel and touch |
 | `js/sound.js` | synthesized machine sounds, or your own samples |
@@ -136,7 +136,9 @@ so they keep working when the page's code is reorganized.
 ## Manual
 
 The **Manual** panel shows the man pages shipped with pdp7-unix (`man/` next to its `build/`
-directory, override with `PDP7_UNIX_MAN`) plus a short "v0 tips" page. The search box filters
+directory, override with `PDP7_UNIX_MAN`) plus a short "v0 tips" page and an `ed` guide
+(after [An introduction to the UNIX ed line editor](https://gunkies.org/wiki/An_introduction_to_the_UNIX_ed_line_editor),
+Computer History Wiki, GFDL 1.2, cut down to what v0 `ed` can do). The search box filters
 pages by name and content and highlights the matches.
 
 ## Sounds

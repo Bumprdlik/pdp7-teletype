@@ -210,7 +210,7 @@ function near(a, b, eps, msg) { assert(Math.abs(a - b) <= eps, `${msg}: ${a} is 
 async function powerOn(p, { touch = false } = {}) {
   await (touch ? p.tap("#bPower") : p.click("#bPower"));
   const s = await p.state();
-  if (!s.turbo) await p.key("F5", 116);             // print fast, the tests don't need 10 chars/s
+  if (!s.turbo) await p.key("F5", 116);             // print fast, the tests don't need 20 chars/s
   assert((await p.state()).turbo, "F5 switches turbo on");
 }
 async function login(p, how = "type") {               // how: "type" (desktop keys) or "insert" (phone)
