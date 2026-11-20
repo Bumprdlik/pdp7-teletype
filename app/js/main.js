@@ -64,3 +64,9 @@ resize();
 void document.body.offsetHeight;             // apply the first layout without transitions...
 document.body.classList.remove("preload");   // ...then allow them (see style.css)
 startPrinting();
+
+// browser-only build: work offline after the first visit (web/sw.js), keep the saved disk
+if (STATIC_BUILD && "serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").catch((e) => console.warn("offline mode unavailable", e));
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+}

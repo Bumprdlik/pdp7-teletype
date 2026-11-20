@@ -9,6 +9,8 @@ a moving type cylinder and machine sounds.
 
 **▶ Try it online: <https://bumprdlik.github.io/pdp7-teletype/>**. It runs entirely in your
 browser, on desktop or phone, with nothing to install. Log in as `ken` / `ken`.
+After the first visit it also works offline, and it can be installed as an app
+(on Android: browser menu → *Add to Home screen* / *Install app*).
 
 ## How it works
 
@@ -33,6 +35,8 @@ The page is plain HTML, CSS and JavaScript modules, with no build step and no de
 | `js/transport.js` | the connection to the PDP-7: `teletype.py`, or a Web Worker in the browser-only build |
 | `js/manual.js`, `js/ui.js` | the manual panel, the buttons and the menu |
 | `js/config.js` | server or browser-only build (`web/build.sh` writes its own copy) |
+
+The browser-only build adds `web/sw.js` and `web/manifest.webmanifest` for offline use.
 
 ## Quick start
 
@@ -112,6 +116,10 @@ python3 -m http.server -d web/dist 8034      # try it at http://127.0.0.1:8034
   the original disk.
 - The CPU is throttled to about 1 million instructions per second (roughly twice the real PDP-7),
   so an idle machine barely uses any CPU.
+- It is an installable web app that works offline: `web/sw.js` (a service worker) keeps a copy of
+  every file of the site, `web/manifest.webmanifest` and `web/icon-*.png` (rendered from
+  `web/icon.svg`) make it installable. A new deploy is picked up in the background and used from
+  the next start; the saved disk is not affected.
 - The browser changes to SIMH are small: a console and sleep backend for Emscripten
   (`web/simh-emscripten.patch`) plus `web/web_glue.c`.
 - `.github/workflows/pages.yml` builds and deploys it on every push to `main` once Pages is set to
@@ -121,7 +129,7 @@ python3 -m http.server -d web/dist 8034      # try it at http://127.0.0.1:8034
 
 `tests/regress.mjs` drives the page in a headless Brave/Chromium (muted, throw-away profile) and
 checks the desktop and phone layouts (portrait and landscape, with and without the on-screen
-keyboard), typing, the manual, the menu and the saved disk. It needs Node 22+ and no npm packages.
+keyboard), typing, the manual, the menu, the saved disk and the offline mode. It needs Node 22+ and no npm packages.
 
 ```sh
 web/build.sh && node tests/regress.mjs          # the static build

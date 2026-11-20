@@ -30,10 +30,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // ---------- static file server for web/dist ----------
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".mjs": "text/javascript",
   ".css": "text/css", ".json": "application/json", ".wasm": "application/wasm", ".gz": "application/gzip",
-  ".txt": "text/plain; charset=utf-8" };
+  ".txt": "text/plain; charset=utf-8", ".png": "image/png", ".webmanifest": "application/manifest+json" };
+let distOffline = false;                 // the "offline" test pulls the plug: every request fails
 function serveDist() {
   return new Promise((ok) => {
     const srv = createServer((req, res) => {
+      if (distOffline) return req.socket.destroy();
       let p = decodeURIComponent(new URL(req.url, "http://x").pathname);
       if (p.endsWith("/")) p += "index.html";
       const f = normalize(join(DIST, p));
@@ -451,6 +453,26 @@ test("phone landscape with keyboard open: short view without the head", async ({
   assert(s.side, "still a side bar");
   await run(page, "insert", "ls", /system/);
   await page.screenshot("phone-landscape-keyboard");
+});
+
+test("offline: installable, works without the network after the first visit", async ({ page }) => {
+  await page.desktop();
+  const icons = await page.eval(`fetch("manifest.webmanifest").then((r) => r.json()).then((m) => m.icons.length)`);
+  assert(icons >= 2, "manifest with icons");
+  await page.until("!!navigator.serviceWorker.controller", 15000, "the service worker controls the page");
+  distOffline = true;                                // the local server stops answering...
+  await page.cmd("Network.enable");                  // ...and the browser is offline (also for --url)
+  await page.cmd("Network.emulateNetworkConditions", { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+  try {
+    await page.reload();
+    await powerOn(page);
+    await login(page);
+    await run(page, "type", "ls", /system/);
+    assert(await page.eval(`fetch("man.json").then((r) => r.json()).then((p) => p.length > 0)`), "the manual offline");
+  } finally {
+    distOffline = false;
+    await page.cmd("Network.emulateNetworkConditions", { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+  }
 });
 
 test("server mode (teletype.py): boot, login, ls", async ({ browser }) => {

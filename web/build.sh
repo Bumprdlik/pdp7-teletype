@@ -89,6 +89,33 @@ json.dump(pages, open(out, "w"))
 EOF
 cp "$ROOT/LICENSE" "$DIST/LICENSE.txt"
 cp "$WEB/NOTICE.txt" "$DIST/NOTICE.txt"
+
+# --- installable app, offline -------------------------------------------------
+cp "$WEB/manifest.webmanifest" "$WEB/icon-192.png" "$WEB/icon-512.png" "$DIST/"
+python3 - "$DIST/index.html" <<'EOF'
+import sys
+p = sys.argv[1]
+head = ('<link rel="manifest" href="manifest.webmanifest">\n'
+        '<meta name="theme-color" content="#141311">\n'
+        '<link rel="icon" href="icon-192.png">\n'
+        '<link rel="apple-touch-icon" href="icon-192.png">\n</head>')
+s = open(p).read()
+assert s.count("</head>") == 1
+open(p, "w").write(s.replace("</head>", head))
+EOF
+# sw.js keeps a copy of every file; its VERSION changes whenever any file does
+python3 - "$DIST" "$WEB/sw.js" "$DIST/sw.js" <<'EOF'
+import hashlib, json, os, sys
+dist, src, out = sys.argv[1:]
+files = sorted(os.path.relpath(os.path.join(d, f), dist).replace(os.sep, "/")
+               for d, _, fs in os.walk(dist) for f in fs if not f.startswith("."))
+h = hashlib.sha256()
+for f in files:
+    h.update(f.encode() + b"\0" + open(os.path.join(dist, f), "rb").read())
+h.update(open(src, "rb").read())
+s = open(src).read().replace("__VERSION__", h.hexdigest()[:12]).replace("__FILES__", json.dumps(files))
+open(out, "w").write(s)
+EOF
 touch "$DIST/.nojekyll"
 
 say "done: $(du -sh "$DIST" | cut -f1) in $DIST"
