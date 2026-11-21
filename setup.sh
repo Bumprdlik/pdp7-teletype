@@ -5,13 +5,20 @@
 #   ./setup.sh            # clone + build what is missing
 #   ./setup.sh --rebuild  # build again even if the results exist
 #
-# Overrides: DEPS (target directory), SIMH_REPO, PDP7_UNIX_REPO (clone sources).
+# Both are pinned to a tested commit (SIMH_COMMIT, PDP7_UNIX_COMMIT below), so an upstream change
+# cannot break the build or the deployed site unnoticed. To move to newer versions, change the
+# hashes, run ./setup.sh and the tests (tests/regress.mjs), and commit.
+#
+# Overrides: DEPS (target directory), SIMH_REPO, PDP7_UNIX_REPO (clone sources),
+# SIMH_COMMIT, PDP7_UNIX_COMMIT (a commit hash, or a branch name such as master).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPS="${DEPS:-$HERE/deps}"
 SIMH_REPO="${SIMH_REPO:-https://github.com/open-simh/simh.git}"
 PDP7_UNIX_REPO="${PDP7_UNIX_REPO:-https://github.com/DoctorWkt/pdp7-unix.git}"
+SIMH_COMMIT="${SIMH_COMMIT:-87eb7d5e96f9ce0ee6ac183e20160e5c486b0712}"        # 2026-09-22
+PDP7_UNIX_COMMIT="${PDP7_UNIX_COMMIT:-555eb30fc76b8fa29095d32eca9a43e9b1638288}"  # 2023-09-08
 REBUILD=0
 [[ "${1:-}" == "--rebuild" ]] && REBUILD=1
 
@@ -36,15 +43,28 @@ EOF
 fi
 
 mkdir -p "$DEPS"
+
+# fetch <dir> <repo> <commit>: make <dir> a checkout of exactly <commit> (only that commit is
+# downloaded). Returns 0 when the checkout changed, so the caller knows it has to rebuild.
+# (Called as `fetch ... && x=1`, where set -e does not apply, hence the explicit `|| fail`.)
+fetch() {
+    local dir="$1" repo="$2" commit="$3"
+    if [[ ! -d "$dir/.git" ]]; then
+        git init -q "$dir" && git -C "$dir" remote add origin "$repo" || fail "git init $dir failed"
+    elif [[ "$(git -C "$dir" rev-parse HEAD 2>/dev/null)" == "$commit" ]]; then
+        return 1
+    fi
+    say "fetching $(basename "$dir") $commit"
+    git -C "$dir" fetch -q --depth 1 origin "$commit" || fail "cannot fetch $commit from $repo"
+    # --force: the pdp7-unix build rewrites a tracked file (build/fs/b_readme)
+    git -C "$dir" -c advice.detachedHead=false checkout -q --force FETCH_HEAD || fail "checkout of $commit failed"
+}
 JOBS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)"
 
 # --- Open SIMH: only the PDP-7 simulator ----------------------------------------
 SIMH_DIR="$DEPS/simh"
-if [[ ! -d "$SIMH_DIR/.git" ]]; then
-    say "cloning Open SIMH"
-    git clone --depth 1 "$SIMH_REPO" "$SIMH_DIR"
-fi
-if [[ $REBUILD == 1 || ! -x "$SIMH_DIR/BIN/pdp7" ]]; then
+SIMH_NEW=0; fetch "$SIMH_DIR" "$SIMH_REPO" "$SIMH_COMMIT" && SIMH_NEW=1
+if [[ $REBUILD == 1 || $SIMH_NEW == 1 || ! -x "$SIMH_DIR/BIN/pdp7" ]]; then
     say "building the PDP-7 simulator (this takes a minute)"
     # pdp7-unix recommends -O1 on 64-bit systems
     make -C "$SIMH_DIR" -j"$JOBS" OPTIMIZE=-O1 pdp7
@@ -53,11 +73,8 @@ fi
 
 # --- PDP-7 Unix v0 ----------------------------------------------------------------
 UNIX_DIR="$DEPS/pdp7-unix"
-if [[ ! -d "$UNIX_DIR/.git" ]]; then
-    say "cloning pdp7-unix"
-    git clone "$PDP7_UNIX_REPO" "$UNIX_DIR"
-fi
-if [[ $REBUILD == 1 || ! -f "$UNIX_DIR/build/image.fs" ]]; then
+UNIX_NEW=0; fetch "$UNIX_DIR" "$PDP7_UNIX_REPO" "$PDP7_UNIX_COMMIT" && UNIX_NEW=1
+if [[ $REBUILD == 1 || $UNIX_NEW == 1 || ! -f "$UNIX_DIR/build/image.fs" ]]; then
     say "building Unix v0 (kernel, commands, disk image)"
     # tools/b.c is K&R C; newer compilers (GCC 15+, C23) reject it without gnu89
     make -C "$UNIX_DIR" CCARGS="-std=gnu89 -Wno-multichar -Wno-implicit"

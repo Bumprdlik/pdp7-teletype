@@ -1,10 +1,12 @@
-# Builds the browser-only version (web/build.sh) and publishes it on GitHub Pages.
+# Builds the browser-only version (web/build.sh), runs the regression tests (tests/regress.mjs)
+# and, if they pass, publishes it on GitHub Pages. Pull requests are built and tested only.
 # Enable it once in the repository: Settings -> Pages -> Source: GitHub Actions.
 name: Deploy to GitHub Pages
 
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -13,25 +15,52 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install build tools
         run: sudo apt-get update && sudo apt-get install -y build-essential libdatetime-perl
+      # setup.sh pins SIMH and pdp7-unix to fixed commits, so its hash identifies the build
+      - name: Cache SIMH and pdp7-unix
+        uses: actions/cache@v6
+        with:
+          path: deps
+          key: deps-${{ runner.os }}-${{ hashFiles('setup.sh') }}
       - name: Fetch and build SIMH and pdp7-unix
         run: ./setup.sh
       - name: Build the static site (Emscripten via Docker)
         run: web/build.sh
-      - uses: actions/upload-pages-artifact@v3
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      # Ubuntu 24.04 does not let Chrome create its sandbox's user namespaces by default
+      - name: Allow the Chrome sandbox
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Regression tests (static build and teletype.py)
+        run: node tests/regress.mjs --server --keep
+        env:
+          BROWSER: google-chrome
+      - name: Upload screenshots of failed tests
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-screenshots
+          path: tests/out/
+          if-no-files-found: ignore
+
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v5
         with:
           path: web/dist
 
   deploy:
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     environment:
@@ -39,4 +68,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

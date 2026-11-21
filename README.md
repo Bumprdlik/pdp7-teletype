@@ -51,6 +51,10 @@ python3 teletype.py
 how to install whatever is missing. Running it again only builds what is missing
 (`--rebuild` forces a rebuild).
 
+SIMH and pdp7-unix are pinned to tested commits (`SIMH_COMMIT` and `PDP7_UNIX_COMMIT` at the top
+of `setup.sh`), so a change upstream cannot break the build unnoticed. To update, change the
+hashes, run `./setup.sh` and the tests, and commit.
+
 ## Requirements
 
 - Python 3
@@ -122,8 +126,9 @@ python3 -m http.server -d web/dist 8034      # try it at http://127.0.0.1:8034
   the next start; the saved disk is not affected.
 - The browser changes to SIMH are small: a console and sleep backend for Emscripten
   (`web/simh-emscripten.patch`) plus `web/web_glue.c`.
-- `.github/workflows/pages.yml` builds and deploys it on every push to `main` once Pages is set to
-  "GitHub Actions" in the repository settings.
+- `.github/workflows/pages.yml` builds it, runs the tests (below) and deploys it on every push to
+  `main` once Pages is set to "GitHub Actions" in the repository settings. If a test fails, nothing
+  is deployed and the screenshots are attached to the run. Pull requests are built and tested only.
 
 ## Tests
 
