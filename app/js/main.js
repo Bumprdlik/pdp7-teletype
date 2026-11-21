@@ -5,6 +5,7 @@
 //   sound.js     machine sounds                            transport.js the PDP-7 (server or worker)
 //   keyboard.js  typing, also on phones                    gestures.js  wheel and touch
 //   manual.js    the Unix v0 manual panel                  ui.js        buttons and menu
+//   tape.js      the paper tape reader
 import { STATIC_BUILD } from "./config.js";
 import { paper, newPaper, scrollTo } from "./paper.js";
 import { layout, resize } from "./layout.js";
@@ -15,16 +16,19 @@ import { initKeyboard, showKeyboard, hideKeyboard, keyboardOpen } from "./keyboa
 import { initGestures } from "./gestures.js";
 import { initManual, toggleManual, manualOpen } from "./manual.js";
 import { initUI, closeMenu, menuOpen, toggleTurbo, toggleLid } from "./ui.js";
+import { initTape, stopTape, tapeOpen, tapeProgress } from "./tape.js";
 import { $ } from "./util.js";
 
 newPaper();
 
 const conn = connect({ onOutput: enqueue, onHistory: replaceWithHistory });
+const typed = (s) => { stopTape(); conn.send(s); };     // a key typed by hand stops the tape reader
 
 // page shortcuts; everything else typed goes to the PDP-7
 function shortcut(e) {
   if (e.key === "F2") { e.preventDefault(); toggleManual(); return true; }
   if (e.target.closest && e.target.closest("#man")) { if (e.key === "Escape") toggleManual(false); return true; }
+  if (tapeOpen()) return true;               // the tape dialog handles its own keys
   if (e.key === "End" || e.key === "PageDown" && e.shiftKey) { e.preventDefault(); scrollTo(0); return true; }
   if (e.key === "PageUp" && e.shiftKey) { e.preventDefault(); scrollTo(paper.viewTarget + layout.h * .6); return true; }
   if (e.key === "F5") { e.preventDefault(); toggleTurbo(); return true; }
@@ -35,7 +39,7 @@ function shortcut(e) {
   }
   return false;
 }
-initKeyboard({ send: conn.send, onTyped: () => scrollTo(0), shortcut });
+initKeyboard({ send: typed, onTyped: () => scrollTo(0), shortcut });
 
 initGestures({ onTap: () => { closeMenu(); showKeyboard(); } });
 
@@ -46,7 +50,9 @@ initManual({
   onClose() { if (keyboardBeforeManual) showKeyboard(); },
 });
 
-initUI(conn);
+initTape({ send: conn.send, onOpen() { closeMenu(); hideKeyboard(); } });
+
+initUI({ ...conn, send: typed });
 
 // read-only view for tests (tests/regress.mjs) and for debugging in the console
 window.__teletype = {
@@ -54,7 +60,7 @@ window.__teletype = {
   get state() {
     return { scale: layout.scale, pan: layout.pan, panX: layout.panX, short: layout.short,
              side: document.body.classList.contains("side"), line: paper.cur, col: paper.col, turbo: turboOn(), lid: lidClosed(),
-             keyboard: keyboardOpen(), manual: manualOpen(), menu: menuOpen(), queued: queued(), staticBuild: STATIC_BUILD };
+             keyboard: keyboardOpen(), manual: manualOpen(), menu: menuOpen(), tape: { open: tapeOpen(), ...tapeProgress() }, queued: queued(), staticBuild: STATIC_BUILD };
   },
 };
 

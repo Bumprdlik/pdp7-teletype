@@ -7,7 +7,7 @@ import { $ } from "./util.js";
 
 export function initGestures({ onTap }) {
   window.addEventListener("wheel", (e) => {
-    if (e.target.closest && e.target.closest("#man")) return;   // the manual scrolls by itself
+    if (e.target.closest && e.target.closest("#man, #tape")) return;   // the manual and the tape dialog scroll by themselves
     e.preventDefault();
     const d = e.deltaMode === 1 ? e.deltaY * LH : e.deltaMode === 2 ? e.deltaY * layout.h : e.deltaY;
     scrollTo(paper.viewTarget - d);                // wheel up = pull the paper down = read older text

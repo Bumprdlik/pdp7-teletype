@@ -337,6 +337,54 @@ test("disk: saved across reload, kept by restart, erased by factory disk", async
   await run(page, "type", "cat regfile", /regfile +\?/);
 });
 
+test("tape reader: a program read into ed arrives intact, typing stops the tape", async ({ page }) => {
+  await page.desktop();
+  await page.reload();
+  await powerOn(page);
+  await login(page);
+  // modern braces: v0 would take } for ALT MODE (interrupt), the reader sends B's $( $) instead
+  const prog = "main() {\n\textrn putchar;\n\tputchar('ok');\n\tputchar('*n');\n}\n";
+  const want = prog.replace("{", "$(").replace("}", "$)").replace(/\n/g, "\n\r");
+  await run(page, "type", "ed", /edit\n\r$/);                  // start the tape only once ed runs (or its "edit" lands in the echo)
+  await page.type("a\r");
+  await sleep(300);
+  await page.click("#bTape");
+  let s = await page.state();
+  assert(s.tape.open && !s.menu, "Tape opens the dialog");
+  await page.type("x");                                         // typing in the dialog goes to the text field, not the PDP-7
+  assert(await page.eval(`document.getElementById("tapeText").value`) === "x", "keys go to the tape text field");
+  await page.eval(`(() => { const t = document.getElementById("tapeText"); t.value = ${JSON.stringify(prog.toUpperCase() + "é")};
+    t.dispatchEvent(new Event("input")); })()`);
+  const info = await page.eval(`document.getElementById("tapeInfo").textContent`);
+  assert(/2 braces/.test(info) && /1 character a Model 33 cannot send/.test(info), `braces and non-ASCII are reported: ${info}`);
+  await page.screenshot("tape-dialog");
+  let m = await page.mark();
+  await page.click("#tapeRead");
+  s = await page.state();
+  assert(!s.tape.open && s.tape.reading, "Read tape closes the dialog and reads");
+  await page.until(`!window.__teletype.state.tape.reading`, 15000, "tape read to the end");
+  await page.waitFor(/\$\)\n\r$/, m, 10000);                    // ed has echoed the last line
+  for (const line of [".", "w tape.b", "q"]) { await page.type(line + "\r"); await sleep(400); }
+  // upper case arrives as lower case, the accent is left out
+  m = await page.mark();
+  await page.type("cat tape.b\r");
+  const out = await page.waitFor(/\$\)\n\r@ $/, m);
+  assert(out.includes(want), `cat shows the program: ${JSON.stringify(out)}`);
+  // a key typed while the tape runs stops it
+  await page.click("#bTape");
+  await page.eval(`(() => { const t = document.getElementById("tapeText"); t.value = "echo " + "a".repeat(300);
+    t.dispatchEvent(new Event("input")); })()`);
+  await page.click("#tapeRead");
+  await sleep(300);
+  await page.type("#");
+  s = await page.state();
+  assert(!s.tape.reading && s.tape.pos < s.tape.len, `typing stops the tape (${s.tape.pos}/${s.tape.len})`);
+  assert(await page.eval(`document.getElementById("tapeStatus").hidden`), "the status pill goes away");
+  m = await page.mark();
+  await page.type("@\r");                                       // @ kills the half-read line
+  await page.waitFor(/@ $/, m);
+});
+
 test("phone portrait: keyboard field, toggle, menu, manual", async ({ page }) => {
   await page.phone(412, 915);
   await page.reload();

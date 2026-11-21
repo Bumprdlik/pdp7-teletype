@@ -15,6 +15,7 @@
   <div id="more">
     <button id="bTurbo" title="F5">Turbo</button>
     <button id="bLid" title="F7">Lid</button>
+    <button id="bTape" title="paper tape reader: types a program for you">Tape</button>
     <button id="bTear">Tear off paper</button>
     <button id="bReset" title="power-cycles the PDP-7 (the disk is saved)">Restart computer</button>
     <button id="bWipe" title="throws away your files and starts with the original 1970 disk" hidden>Factory disk</button>
@@ -31,6 +32,24 @@
   <div id="manPage"></div>
 </aside>
 <div id="back">Scrolled back · End or any key returns</div>
+<div id="tape" role="dialog" aria-labelledby="tapeTitle" hidden>
+  <h2 id="tapeTitle">Paper tape reader</h2>
+  <p>Paste a program or choose a file (you can also drop one on the page). The reader types it at
+     10 characters per second (Turbo: faster), as if you typed it. In <code>ed</code>: type <code>a</code>,
+     read the tape, then type <code>.</code> and <code>w name</code>. As on the keyboard, <code>#</code>
+     erases a character and <code>@</code> the whole line.</p>
+  <textarea id="tapeText" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"
+            placeholder="main() {&#10;  putchar('hi*n');&#10;}"></textarea>
+  <div id="tapeInfo" aria-live="polite"></div>
+  <div class="row">
+    <button id="tapeChoose">Choose file…</button>
+    <input id="tapeFile" type="file" hidden>
+    <span class="grow"></span>
+    <button id="tapeCancel">Cancel</button>
+    <button id="tapeRead" class="primary" disabled>Read tape</button>
+  </div>
+</div>
+<div id="tapeStatus" role="status" hidden></div>
 <textarea id="kbd" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"
           aria-label="Teletype keyboard"></textarea>
 <div id="power"><button id="bPower">POWER ON TELETYPE</button></div>

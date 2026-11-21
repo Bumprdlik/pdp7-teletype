@@ -34,6 +34,7 @@ The page is plain HTML, CSS and JavaScript modules, with no build step and no de
 | `js/sound.js` | synthesized machine sounds, or your own samples |
 | `js/transport.js` | the connection to the PDP-7: `teletype.py`, or a Web Worker in the browser-only build |
 | `js/manual.js`, `js/ui.js` | the manual panel, the buttons and the menu |
+| `js/tape.js` | the paper tape reader |
 | `js/config.js` | server or browser-only build (`web/build.sh` writes its own copy) |
 
 The browser-only build adds `web/sw.js` and `web/manifest.webmanifest` for offline use.
@@ -91,9 +92,23 @@ stays untouched. The disk is saved on exit (`Ctrl+C`).
 | F8 | cycle carriage-return sounds (only with your own samples) |
 | F2 / **Manual** | Unix v0 manual in a side panel, with search |
 | mouse wheel, End | scroll back through the paper, return to the print line |
+| **Tape** | paper tape reader: types a pasted program or a file for you (see below) |
 | **Tear off paper** | start with a clean sheet |
 | **Restart computer** | power-cycle the PDP-7 (when Unix hangs) |
 | Backspace | sends `#`, which erases the previous character in v0 |
+
+## Paper tape reader
+
+Like the reader of a Model 33 ASR, **Tape** takes a program (pasted, chosen as a file, or a file
+dropped on the page) and types it to the PDP-7 at 10 characters per second, as if you typed it:
+v0 echoes it, so it is printed too. To put a file on the disk, start `ed`, type `a`, read the tape,
+then type `.` and `w name`. Typing any key stops the tape.
+
+The text is sent the way the keyboard sends it: lower case, Return at line ends, without characters
+a Model 33 cannot send. Braces become `$(` `$)` (B's braces): the Model 33 has no `{ }`, and v0
+takes `}` (code 0175) for ALT MODE, which would interrupt the program reading the tape.
+With Turbo the reader does 40 characters per second, not more: v0 echoes every character, its console
+prints only about 80 per second in the browser build, and faster input loses characters.
 
 ## Unix v0 tips
 
@@ -134,7 +149,7 @@ python3 -m http.server -d web/dist 8034      # try it at http://127.0.0.1:8034
 
 `tests/regress.mjs` drives the page in a headless Brave/Chromium (muted, throw-away profile) and
 checks the desktop and phone layouts (portrait and landscape, with and without the on-screen
-keyboard), typing, the manual, the menu, the saved disk and the offline mode. It needs Node 22+ and no npm packages.
+keyboard), typing, the paper tape reader, the manual, the menu, the saved disk and the offline mode. It needs Node 22+ and no npm packages.
 
 ```sh
 web/build.sh && node tests/regress.mjs          # the static build

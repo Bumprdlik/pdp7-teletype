@@ -5,6 +5,7 @@ import { changeTypeSize } from "./layout.js";
 import { toggleTurbo as printerTurbo } from "./printer.js";
 import { toggleLid as soundLid, initAudio } from "./sound.js";
 import { keyboardOpen, showKeyboard, hideKeyboard, onKeyboardChange } from "./keyboard.js";
+import { openTape } from "./tape.js";
 import { $ } from "./util.js";
 
 const more = $("more"), bMenu = $("bMenu");
@@ -53,6 +54,7 @@ export function initUI(conn) {
   $("bTurbo").onclick = (e) => { toggleTurbo(); e.target.blur(); };
   $("bLid").onclick = (e) => { toggleLid(); e.target.blur(); };
   $("back").onclick = () => scrollTo(0);
+  $("bTape").onclick = (e) => { e.target.blur(); openTape(); };
   $("bTear").onclick = (e) => { newPaper(); e.target.blur(); closeMenu(); };
   confirmButton("bReset", "Really restart?", () => conn.restart());
   if (conn.wipe) { $("bWipe").hidden = false; confirmButton("bWipe", "Erase your files?", conn.wipe); }
