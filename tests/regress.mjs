@@ -55,15 +55,26 @@ function findBrowser() {
   }
   throw new Error("no Chromium-family browser found - set BROWSER=/path/to/browser");
 }
-async function launchBrowser() {
+// A cold first start can be slow (CI runners), so wait up to 30 s and try twice; on failure show
+// what the browser said.
+async function launchBrowser(attempt = 1) {
   const profile = mkdtempSync(join(tmpdir(), "teletype-test-"));
   const proc = spawn(findBrowser(), ["--headless=new", "--mute-audio", "--no-first-run", "--no-default-browser-check",
-    "--remote-debugging-port=0", `--user-data-dir=${profile}`, "about:blank"], { stdio: "ignore" });
+    "--remote-debugging-port=0", `--user-data-dir=${profile}`, "about:blank"], { stdio: ["ignore", "ignore", "pipe"] });
+  let stderr = "", exited = null;
+  proc.stderr.on("data", (d) => { stderr = (stderr + d).slice(-2000); });
+  proc.on("exit", (code, sig) => { exited = sig || code; });
   const portFile = join(profile, "DevToolsActivePort");
-  for (let i = 0; i < 100 && !existsSync(portFile); i++) await sleep(100);
-  if (!existsSync(portFile)) throw new Error("the browser did not start");
-  const port = readFileSync(portFile, "utf8").split("\n")[0];
-  return { port, close() { proc.kill(); setTimeout(() => rmSync(profile, { recursive: true, force: true }), 500); } };
+  const port = () => existsSync(portFile) && readFileSync(portFile, "utf8").split("\n")[0];
+  for (let i = 0; i < 300 && !port() && exited === null; i++) await sleep(100);
+  if (!port()) {
+    proc.kill();
+    rmSync(profile, { recursive: true, force: true });
+    const why = `the browser did not start (${exited === null ? "no answer in 30 s" : "exited: " + exited})\n${stderr}`;
+    if (attempt < 2) { console.log(why + "\ntrying again"); return launchBrowser(attempt + 1); }
+    throw new Error(why);
+  }
+  return { port: port(), close() { proc.kill(); setTimeout(() => rmSync(profile, { recursive: true, force: true }), 500); } };
 }
 
 // ---------- one page = one CDP session ----------
