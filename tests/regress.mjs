@@ -385,6 +385,47 @@ test("tape reader: a program read into ed arrives intact, typing stops the tape"
   await page.waitFor(/@ $/, m);
 });
 
+test("tape reader: with a file name it saves the program via ed, warns at the shell prompt", async ({ page }) => {
+  await page.desktop();
+  await page.reload();
+  await powerOn(page);
+  await login(page);
+  const setField = (id, v) => page.eval(`(() => { const e = document.getElementById("${id}"); e.value = ${JSON.stringify(v)};
+    e.dispatchEvent(new Event("input")); })()`);
+  const dialog = () => page.eval(`({ warn: document.getElementById("tapeWarn").textContent,
+    label: document.getElementById("tapeRead").textContent, disabled: document.getElementById("tapeRead").disabled })`);
+  await page.click("#bTape");
+  await setField("tapeText", "main() {\n  putchar('hi');\n}");      // no line end at the end
+  let d = await dialog();
+  assert(/every line will run as a command/.test(d.warn) && !d.disabled, `warns at the @ prompt: ${d.warn}`);
+  await setField("tapeName", "toolongname.b");
+  d = await dialog();
+  assert(d.disabled && /at most 8/.test(d.warn), `refuses a long name: ${d.warn}`);
+  await setField("tapeText", "a\n.\nb\n");
+  await setField("tapeName", "hi.b");
+  d = await dialog();
+  assert(d.disabled && /only \./.test(d.warn), `refuses a line with only "." when saving: ${d.warn}`);
+  await setField("tapeText", "main() {\n  putchar('hi');\n}");
+  d = await dialog();
+  assert(!d.disabled && !d.warn && d.label === "Save as hi.b", `ready to save: ${JSON.stringify(d)}`);
+  let m = await page.mark();
+  await page.click("#tapeRead");
+  assert((await page.state()).tape.phase === "ed", "starts ed first");
+  await page.until(`!window.__teletype.state.tape.reading`, 20000, "tape saved");
+  await page.waitFor(/w hi\.b\s+q\s+(\d+\s+)?@ $/, m, 15000);   // ed wrote the file (its size can follow the typed-ahead q) and quit
+  const out = await run(page, "type", "cat hi.b", /\$\)\n\r@ $/);
+  assert(out.includes("main() $(\n\r  putchar('hi');\n\r$)\n\r"), `the file holds the program: ${JSON.stringify(out)}`);
+  // inside a running program there is no shell to start ed from
+  await run(page, "type", "ed", /edit\n\r$/);
+  await page.click("#bTape");
+  d = await dialog();
+  assert(d.disabled && /needs the @ prompt/.test(d.warn), `refuses to save outside the shell: ${d.warn}`);
+  await page.click("#tapeCancel");
+  m = await page.mark();
+  await page.type("q\r");
+  await page.waitFor(/@ $/, m);
+});
+
 test("phone portrait: keyboard field, toggle, menu, manual", async ({ page }) => {
   await page.phone(412, 915);
   await page.reload();

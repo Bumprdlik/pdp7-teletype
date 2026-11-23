@@ -15,7 +15,7 @@ const V0_TIPS = [                              // [topic, text]; not part of the
   ["}", "is ALT MODE too (code 0175): typing it interrupts the program. B writes the braces as $( and $)."],
   ["FILES", "ls, list (details), stat, cat, cp, mv, ln, rm, chmod, chown, od"],
   ["ed", "a (append text) ... . (end), p, 1,$p, /word/, w name, q. A reply of ? means error. More on the \"ed (editor)\" page."],
-  ["TAPE", "the paper tape reader types a pasted program or a file for you: in ed type a, then Tape → Read tape, then . and w name. { } on the tape are read as $( $)."],
+  ["TAPE", "the paper tape reader types a pasted program or a file for you. Give it a file name and it saves the program via ed by itself (from the @ prompt). { } on the tape are read as $( $)."],
   ["B LANGUAGE", "in dmr's directory: b hello.b hello.s, then as op.s bl.s hello.s bi.s, then a.out. More on the \"b (language)\" page."],
   ["DO NOT", "run n.out - it is the assembler's symbol table, not a program. It hangs the machine; use Restart computer."],
   ["", "run init - it is the system's first process; a second copy fights the shell for the terminal."],

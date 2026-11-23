@@ -101,8 +101,13 @@ stays untouched. The disk is saved on exit (`Ctrl+C`).
 
 Like the reader of a Model 33 ASR, **Tape** takes a program (pasted, chosen as a file, or a file
 dropped on the page) and types it to the PDP-7 at 10 characters per second, as if you typed it:
-v0 echoes it, so it is printed too. To put a file on the disk, start `ed`, type `a`, read the tape,
-then type `.` and `w name`. Typing any key stops the tape.
+v0 echoes it, so it is printed too. Typing any key stops the tape.
+
+- **With a file name** (*Save as file*, filled in from a chosen file's name) the reader saves the
+  program: from the shell's `@` prompt it starts `ed`, waits until it runs, and types `a`, the tape,
+  `.`, `w name` and `q`. A file of that name is replaced. v0 names have at most 8 characters.
+- **Without one** it types into whatever is running, for example into `ed` after you typed `a`
+  yourself. At the `@` prompt every line would run as a shell command, so the dialog warns.
 
 The text is sent the way the keyboard sends it: lower case, Return at line ends, without characters
 a Model 33 cannot send. Braces become `$(` `$)` (B's braces): the Model 33 has no `{ }`, and v0

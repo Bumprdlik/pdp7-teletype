@@ -35,12 +35,15 @@
 <div id="tape" role="dialog" aria-labelledby="tapeTitle" hidden>
   <h2 id="tapeTitle">Paper tape reader</h2>
   <p>Paste a program or choose a file (you can also drop one on the page). The reader types it at
-     10 characters per second (Turbo: faster), as if you typed it. In <code>ed</code>: type <code>a</code>,
-     read the tape, then type <code>.</code> and <code>w name</code>. As on the keyboard, <code>#</code>
-     erases a character and <code>@</code> the whole line.</p>
+     10 characters per second (Turbo: faster), as if you typed it. With a file name it saves the
+     program: it starts <code>ed</code> for you and writes the file (a file of that name is replaced).
+     As on the keyboard, <code>#</code> erases a character and <code>@</code> the whole line.</p>
   <textarea id="tapeText" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"
             placeholder="main() {&#10;  putchar('hi*n');&#10;}"></textarea>
+  <label class="name">Save as file <input id="tapeName" maxlength="8" placeholder="hello.b" spellcheck="false"
+         autocapitalize="off" autocomplete="off" autocorrect="off"></label>
   <div id="tapeInfo" aria-live="polite"></div>
+  <div id="tapeWarn" role="alert"></div>
   <div class="row">
     <button id="tapeChoose">Choose file…</button>
     <input id="tapeFile" type="file" hidden>

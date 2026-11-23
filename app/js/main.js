@@ -16,12 +16,15 @@ import { initKeyboard, showKeyboard, hideKeyboard, keyboardOpen } from "./keyboa
 import { initGestures } from "./gestures.js";
 import { initManual, toggleManual, manualOpen } from "./manual.js";
 import { initUI, closeMenu, menuOpen, toggleTurbo, toggleLid } from "./ui.js";
-import { initTape, stopTape, tapeOpen, tapeProgress } from "./tape.js";
+import { initTape, stopTape, tapeOpen, tapeProgress, tapeOutput } from "./tape.js";
 import { $ } from "./util.js";
 
 newPaper();
 
-const conn = connect({ onOutput: enqueue, onHistory: replaceWithHistory });
+const conn = connect({
+  onOutput(d) { enqueue(d); tapeOutput(d); },          // the tape reader watches for the shell prompt and ed
+  onHistory(h) { replaceWithHistory(h); tapeOutput(h); },
+});
 const typed = (s) => { stopTape(); conn.send(s); };     // a key typed by hand stops the tape reader
 
 // page shortcuts; everything else typed goes to the PDP-7

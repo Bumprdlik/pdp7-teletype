@@ -29,6 +29,13 @@ canvas { display: block; }
 #tape textarea { min-height: 180px; flex: 1; resize: vertical; font: 14px/1.4 "Courier New", "Liberation Mono", monospace;
                  color: #1d1b1f; background: #efe9dc; border: 1px solid #4a463e; border-radius: 4px; padding: 8px; }
 #tapeInfo { min-height: 1.4em; font-size: 12px; opacity: .75; }
+#tapeWarn { font-size: 12px; color: #e0a84a; }
+#tapeWarn:empty { display: none; }
+#tape label.name { display: flex; align-items: center; gap: 8px; }
+#tape label.name input { width: 10ch; font: 14px "Courier New", "Liberation Mono", monospace; color: #eee8da; background: #2a2824;
+                         border: 1px solid #4a463e; border-radius: 4px; padding: 5px 8px; outline: none; }
+#tape label.name input:focus { border-color: #a77c2c; }
+@media (pointer: coarse) { #tape textarea, #tape label.name input { font-size: 16px; } }   /* iOS zooms in on smaller fields */
 #tape .row { display: flex; gap: 8px; }
 #tape .grow { flex: 1; }
 #tape button { font: inherit; color: #ddd8cc; background: #2a2824; border: 1px solid #4a463e; border-radius: 4px;
@@ -42,6 +49,7 @@ canvas { display: block; }
   #tape p { font-size: 11.5px; line-height: 1.3; }
   #tape textarea { min-height: 3.2em; }
 }
+@media (max-height: 380px) { #tape p, #tapeInfo { display: none; } }   /* landscape with the keyboard open */
 #man { position: fixed; top: 44px; left: 0; bottom: 0; width: var(--manw); z-index: 5; display: flex; flex-direction: column;
        background: #1d1b18f2; border-right: 1px solid #4a463e; transform: translateX(-100%); transition: transform .25s ease;
        box-shadow: 12px 0 30px #0008; }
